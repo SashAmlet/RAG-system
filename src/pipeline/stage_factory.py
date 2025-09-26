@@ -1,0 +1,2 @@
+"""Stage factory placeholder."""
+
