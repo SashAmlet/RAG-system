@@ -1,2 +1,7 @@
-# Minimal requirements for development
 python-dotenv
+pdfplumber 
+python-docx
+regex
+marker-pdf
+nltk        
+imghdr
