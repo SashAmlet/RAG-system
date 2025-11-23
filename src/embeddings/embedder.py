@@ -1,152 +1,132 @@
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from typing import List, Dict, Any
-import numpy as np
-from collections import Counter
-from sklearn.feature_extraction.text import TfidfVectorizer
-from src.models import ProcessorResult, EmbedderResult
+from typing import List, Optional
+from sentence_transformers import SentenceTransformer
+import logging
 
-# ----- Strategy interface -----
+from src.models import TextChunk, EmbedderResult
+
+logger = logging.getLogger(__name__)
 
 
 class IEmbedder(ABC):
+    """Базовий інтерфейс для embedder'ів"""
 
     @abstractmethod
-    def embed(self, result: ProcessorResult) -> EmbedderResult:
-        """
-        Приймає результат обробки (текст) і повертає вектор.
-        """
+    def embed(self, chunk: TextChunk) -> EmbedderResult:
+        """Векторизує ОДИН текстовий чанк."""
+        pass
+
+    @abstractmethod
+    def embed_batch(self, chunks: List[TextChunk]) -> List[EmbedderResult]:
+        """Векторизує множину чанків (оптимізовано)."""
         pass
 
 
-# ----- Concrete strategies -----
-
-
-class BOWEmbedder(IEmbedder):
-
-    def __init__(self, vocabulary: List[str]):
-        self.vocab = vocabulary
-
-    def embed(self, result: ProcessorResult) -> EmbedderResult:
-        # Використовуємо токени з моделі або розбиваємо текст самі
-        tokens = result.tokens if result.tokens else result.processed_text.split(
-        )
-
-        counter = Counter(tokens)
-        vector = [counter.get(word, 0) for word in self.vocab]
-        return EmbedderResult(vector=vector,
-                              metadata={
-                                  "method": "BOW",
-                                  "dim": len(vector)
-                              })
-
-
-class TFIDFEmbedder(IEmbedder):
-
-    def __init__(self, documents: List[str]):
-        # У реальному RAG це проблематично, бо TF-IDF треба тренувати на всьому корпусі заздалегідь.
-        # Але для навчального проєкту ок.
-        self.vectorizer = TfidfVectorizer()
-        if documents:
-            self.vectorizer.fit(documents)
-        else:
-            # Fallback щоб не падало, якщо документів 0
-            self.vectorizer.fit(["dummy text"])
-
-    def embed(self, result: ProcessorResult) -> EmbedderResult:
-        text = result.processed_text
-        vector = self.vectorizer.transform([text]).toarray()[0].tolist()
-        return EmbedderResult(vector=vector,
-                              metadata={
-                                  "method": "TF-IDF",
-                                  "dim": len(vector)
-                              })
-
-
-class Word2VecEmbedder(IEmbedder):
-
-    def __init__(self, model):
-        self.model = model
-
-    def embed(self, result: ProcessorResult) -> EmbedderResult:
-        tokens = result.tokens if result.tokens else result.processed_text.split(
-        )
-
-        vectors = [
-            self.model.wv[word] for word in tokens if word in self.model.wv
-        ]
-        if not vectors:
-            avg_vector = [0.0] * self.model.vector_size
-        else:
-            avg_vector = np.mean(vectors, axis=0).tolist()
-
-        return EmbedderResult(vector=avg_vector,
-                              metadata={
-                                  "method": "Word2Vec",
-                                  "dim": len(avg_vector)
-                              })
-
-
 class SentenceBERTEmbedder(IEmbedder):
+    """
+    Embedder на базі Sentence-BERT.
+    Використовує трансформерні моделі для створення якісних семантичних векторів.
+    """
 
     def __init__(self,
-                 model_name: str = "sentence-transformers/all-MiniLM-L6-v2"):
-        from sentence_transformers import SentenceTransformer
-        self.model = SentenceTransformer(model_name)
+                 model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
+                 device: Optional[str] = None,
+                 batch_size: int = 32):
+        """
+        Args:
+            model_name: Назва моделі з HuggingFace
+            device: 'cuda', 'cpu' або None (авто)
+            batch_size: Розмір батча для batch_encode
+        """
+        logger.info(f"Завантаження SBERT моделі: {model_name}")
+        self.model_name = model_name
+        self.model = SentenceTransformer(model_name, device=device)
+        self.batch_size = batch_size
+        self.embedding_dim = self.model.get_sentence_embedding_dimension()
+        logger.info(f"Модель завантажена. Розмірність: {self.embedding_dim}")
 
-    def embed(self, result: ProcessorResult) -> EmbedderResult:
-        # SBERT працює з чистим текстом
-        text = result.processed_text
-        vector = self.model.encode(text).tolist()
+    def embed(self, chunk: TextChunk) -> EmbedderResult:
+        """
+        Векторизує один чанк.
+        Для множини чанків використовуйте embed_batch() (швидше).
+        """
+        vector = self.model.encode(chunk.text,
+                                   convert_to_numpy=True,
+                                   show_progress_bar=False).tolist()
+
         return EmbedderResult(vector=vector,
+                              chunk_id=chunk.chunk_id,
+                              document_id=chunk.document_id,
                               metadata={
                                   "method": "Sentence-BERT",
-                                  "dim": len(vector)
+                                  "model": self.model_name,
+                                  "chunk_index": chunk.chunk_index,
+                                  "text_length": len(chunk.text)
                               })
 
+    def embed_batch(self, chunks: List[TextChunk]) -> List[EmbedderResult]:
+        """
+        Векторизує множину чанків за один прохід.
+        Використовує batch encoding для оптимізації.
+        """
+        if not chunks:
+            return []
 
-class OpenAIEmbedder(IEmbedder):
+        logger.info(
+            f"Векторизація {len(chunks)} чанків (batch_size={self.batch_size})"
+        )
 
-    def __init__(self, client, model="text-embedding-ada-002"):
-        self.client = client
-        self.model = model
+        # Витягуємо тексти
+        texts = [chunk.text for chunk in chunks]
 
-    def embed(self, result: ProcessorResult) -> EmbedderResult:
-        text = result.processed_text
-        # Замінюємо переноси рядків, це рекомендація OpenAI
-        text = text.replace("\n", " ")
+        # Batch векторизація (швидше в 5-10 разів)
+        vectors = self.model.encode(texts,
+                                    batch_size=self.batch_size,
+                                    convert_to_numpy=True,
+                                    show_progress_bar=len(chunks) > 50)
 
-        response = self.client.embeddings.create(model=self.model, input=text)
-        # OpenAI v1.x повертає об'єкт, а не словник
-        vector = response.data[0].embedding
-        return EmbedderResult(vector=vector,
-                              metadata={
-                                  "method": "OpenAI",
-                                  "dim": len(vector)
-                              })
+        # Створюємо результати
+        results = []
+        for chunk, vector in zip(chunks, vectors):
+            results.append(
+                EmbedderResult(vector=vector.tolist(),
+                               chunk_id=chunk.chunk_id,
+                               document_id=chunk.document_id,
+                               metadata={
+                                   "method": "Sentence-BERT",
+                                   "model": self.model_name,
+                                   "chunk_index": chunk.chunk_index,
+                                   "text_length": len(chunk.text)
+                               }))
 
-
-# ----- Factory -----
+        logger.info(
+            f"Векторизація завершена. Розмірність: {len(results[0].vector)}")
+        return results
 
 
 class EmbedderFactory:
+    """Фабрика для створення embedder'ів"""
 
     @staticmethod
-    def create(method: str, **kwargs) -> IEmbedder:
+    def create(method: str = "sbert", **kwargs) -> IEmbedder:
+        """
+        Створює embedder.
+        
+        Args:
+            method: Тип embedder'а (наразі лише 'sbert')
+            **kwargs: Параметри для embedder'а
+            
+        Returns:
+            Екземпляр IEmbedder
+        """
         method = method.lower()
-        if method == "bow":
-            return BOWEmbedder(kwargs["vocabulary"])
-        elif method == "tfidf":
-            return TFIDFEmbedder(kwargs["documents"])
-        elif method == "word2vec":
-            return Word2VecEmbedder(kwargs["model"])
-        elif method == "sbert":
-            return SentenceBERTEmbedder(
-                kwargs.get("model_name",
-                           "sentence-transformers/all-MiniLM-L6-v2"))
-        elif method == "openai":
-            return OpenAIEmbedder(
-                kwargs["client"], kwargs.get("model",
-                                             "text-embedding-ada-002"))
+
+        if method == "sbert":
+            return SentenceBERTEmbedder(model_name=kwargs.get(
+                "model_name", "sentence-transformers/all-MiniLM-L6-v2"),
+                                        device=kwargs.get("device", None),
+                                        batch_size=kwargs.get(
+                                            "batch_size", 32))
         else:
-            raise ValueError(f"Unknown embedder method: {method}")
+            raise ValueError(
+                f"Unknown embedder method: {method}. Available: 'sbert'")

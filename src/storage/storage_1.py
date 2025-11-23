@@ -1,2 +1,1 @@
-"""First storage backend placeholder."""
 
