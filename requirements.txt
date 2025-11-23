@@ -1,7 +1,36 @@
-python-dotenv
-pdfplumber 
-python-docx
-regex
-marker-pdf
-nltk        
-imghdr
+# ===== Core Dependencies =====
+python-dotenv>=0.19.0
+pdfplumber>=0.8.0
+python-docx>=0.8.11
+regex>=2022.0.0
+marker-pdf>=0.2.0
+nltk>=3.7
+
+# ===== For Embeddings and Vectorization =====
+numpy>=1.21.0
+scikit-learn>=1.0.0
+gensim>=4.0.0
+sentence-transformers>=2.2.0
+
+# ===== For Vector Storage =====
+faiss-cpu>=1.7.0
+# Uncomment for GPU support: faiss-gpu>=1.7.0
+
+# ===== For LLM Integration =====
+# openai>=0.27.0
+# langchain>=0.0.150
+# For local models: ollama>=0.0.1
+
+# ===== For Logging and Monitoring =====
+# python-json-logger>=2.0.0
+
+# ===== For Testing (Development Only) =====
+# pytest>=7.0.0
+# pytest-asyncio>=0.20.0
+# pytest-cov>=4.0.0
+
+# ===== For Code Quality (Development Only) =====
+# pylint>=2.14.0
+# flake8>=4.0.0
+# black>=22.0.0
+# mypy>=0.950
