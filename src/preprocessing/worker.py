@@ -33,13 +33,13 @@ class TextCleaner(Worker):
     - прибирає пусті LaTeX-команди
     """
 
-    def __init__(self, preserve_tables: bool = True, preserve_math: bool = True):
+    def __init__(self,
+                 preserve_tables: bool = True,
+                 preserve_math: bool = True):
         self.preserve_tables = preserve_tables
         self.preserve_math = preserve_math
 
     def process(self, text: str) -> str:
-        import re
-
         # Placeholder mechanism to protect blocks we don't want altered
         preserves = []
 
@@ -49,7 +49,10 @@ class TextCleaner(Worker):
 
         # Preserve [TABLE]...[/TABLE] blocks produced by PDF parser
         if self.preserve_tables:
-            text = re.sub(r'\[TABLE\].*?\[/TABLE\]', _store_and_replace, text, flags=re.S)
+            text = re.sub(r'\[TABLE\].*?\[/TABLE\]',
+                          _store_and_replace,
+                          text,
+                          flags=re.S)
 
         # Preserve common LaTeX/math blocks so cleaning doesn't mangle formulas
         if self.preserve_math:
@@ -58,9 +61,15 @@ class TextCleaner(Worker):
             # \[ ... \]
             text = re.sub(r'\\\[.*?\\\]', _store_and_replace, text, flags=re.S)
             # inline $...$
-            text = re.sub(r'(?<!\$)\$[^\n\$]+\$(?!\$)', _store_and_replace, text, flags=re.S)
+            text = re.sub(r'(?<!\$)\$[^\n\$]+\$(?!\$)',
+                          _store_and_replace,
+                          text,
+                          flags=re.S)
             # \begin{...} ... \end{...}
-            text = re.sub(r'\\begin\{.*?\}.*?\\end\{.*?\}', _store_and_replace, text, flags=re.S)
+            text = re.sub(r'\\begin\{.*?\}.*?\\end\{.*?\}',
+                          _store_and_replace,
+                          text,
+                          flags=re.S)
 
         # Remove HTML tags
         text = re.sub(r'<[^>]+>', ' ', text)
@@ -75,7 +84,8 @@ class TextCleaner(Worker):
         text = re.sub(r'\\(label|ref|cite)\{.*?\}', '', text)
 
         # Replace common non-breaking spaces and thin spaces
-        text = text.replace('\u2009', ' ').replace('\u202F', ' ').replace('\xa0', ' ')
+        text = text.replace('\u2009', ' ').replace('\u202F',
+                                                   ' ').replace('\xa0', ' ')
 
         # Normalize quotes and apostrophes
         text = text.replace('“', '"').replace('”', '"').replace('’', "'")
@@ -127,6 +137,7 @@ class UnicodeNormalizer(Worker):
                 filtered_chars.append(ch)
 
         return ''.join(filtered_chars)
+
 
 class ParagraphFixer(Worker):
     """
@@ -209,9 +220,11 @@ class RemovePageNumbers(Worker):
         for i, line in enumerate(lines):
             s = line.strip()
             # If the line is very short and contains only digits (likely a page number), drop it
-            if s.isdigit() and len(s) >= self.min_digits and (not self.aggressive and len(s) <= 4 or self.aggressive):
-                prev_empty = (i == 0) or (lines[i-1].strip() == '')
-                next_empty = (i == len(lines)-1) or (lines[i+1].strip() == '')
+            if s.isdigit() and len(s) >= self.min_digits and (
+                    not self.aggressive and len(s) <= 4 or self.aggressive):
+                prev_empty = (i == 0) or (lines[i - 1].strip() == '')
+                next_empty = (i == len(lines) - 1) or (lines[i + 1].strip()
+                                                       == '')
                 if prev_empty or next_empty:
                     continue
 
@@ -222,7 +235,6 @@ class RemovePageNumbers(Worker):
             filtered_lines.append(line)
 
         return '\n'.join(filtered_lines)
-
 
 
 class FixHyphenUk(Worker):
@@ -244,7 +256,7 @@ class FixHyphenUk(Worker):
             # If line ends with a hyphen (or an em/–/— followed by optional space), join with next line
             if i + 1 < len(lines):
                 if re.search(r'[-\u2010-\u2015]\s*$', s):
-                    next_line = lines[i+1].lstrip()
+                    next_line = lines[i + 1].lstrip()
                     # remove the hyphen and join without extra space
                     joined = re.sub(r'[-\u2010-\u2015]\s*$', '', s) + next_line
                     processed_lines.append(joined)
@@ -283,4 +295,3 @@ class SingleLineifier(Worker):
 
         # Trim
         return text.strip()
-

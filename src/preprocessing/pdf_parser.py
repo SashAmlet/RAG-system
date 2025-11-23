@@ -25,7 +25,7 @@ class PDFParser(DocumentParser):
     """
     Парсер PDF-документів на базі pdfplumber.
     """
-    supported_extensions = (".pdf",)
+    supported_extensions = (".pdf", )
 
     def __init__(self, config: Optional[PdfParserConfig] = None) -> None:
         self.config = config or PdfParserConfig()
@@ -36,7 +36,8 @@ class PDFParser(DocumentParser):
             raise FileNotFoundError(f"File not found: {path}")
 
         if not self.supports(path):
-            raise ValueError(f"Unsupported file extension for PDFParser: {path.suffix}")
+            raise ValueError(
+                f"Unsupported file extension for PDFParser: {path.suffix}")
 
         parts: List[str] = []
 
@@ -63,7 +64,8 @@ class PDFParser(DocumentParser):
                 parts.append(page_text.strip())
 
                 # Розділювач між сторінками, якщо задано
-                if self.config.page_separator and i < min(num_pages, limit) - 1:
+                if self.config.page_separator and i < min(num_pages,
+                                                          limit) - 1:
                     parts.append(self.config.page_separator)
 
         # Повертаємо сирий текст; подальшу чистку робитимуть воркери
@@ -94,12 +96,14 @@ class PDFParser(DocumentParser):
                 rows_as_text.append(" | ".join(cells))
 
             if rows_as_text:
-                blocks.append("[TABLE]\n" + "\n".join(rows_as_text) + "\n[/TABLE]")
+                blocks.append("[TABLE]\n" + "\n".join(rows_as_text) +
+                              "\n[/TABLE]")
 
         return "\n\n".join(blocks)
 
 
-def parse_pdf(file_path: str | Path, config: Optional[PdfParserConfig] = None) -> str:
+def parse_pdf(file_path: str | Path,
+              config: Optional[PdfParserConfig] = None) -> str:
     """
     Зручна функція для швидкого парсингу PDF без створення екземпляра класу.
     """

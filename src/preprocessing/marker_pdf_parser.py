@@ -4,20 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 import logging
-# import base64
-from typing import Any
-
 from .document_parser import DocumentParser
-
-# Імпорти для marker-pdf
-try:
-    import marker.converters.pdf as pdf
-    from marker.models import create_model_dict
-    from marker.output import text_from_rendered
-    MARKER_AVAILABLE = True
-except ImportError as e:
-    MARKER_AVAILABLE = False
-    raise e
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +17,6 @@ class MarkerPdfParserConfig:
     - max_pages: максимум сторінок для парсингу (None = всі).
     - page_separator: роздільник між сторінками (None щоб не додавати).
     - extract_images: чи витягувати зображення окремо.
-    - device: пристрій для обчислень ('auto', 'cpu', 'cuda', 'mps').
     """
     max_pages: Optional[int] = None
     page_separator: Optional[str] = None
@@ -50,18 +36,22 @@ class MarkerPDFParser(DocumentParser):
     supported_extensions = (".pdf", )
 
     def __init__(self, config: Optional[MarkerPdfParserConfig] = None) -> None:
-        if not MARKER_AVAILABLE:
-            raise ImportError(
-                "marker-pdf не встановлено. Встановіть: pip install marker-pdf"
-            )
-
         self.config = config or MarkerPdfParserConfig()
 
-        # Ініціалізуємо converter один раз для оптимізації
+        # Перевіряємо наявність бібліотеки лише при ініціалізації класу
+        try:
+            global pdf, create_model_dict, text_from_rendered
+            import marker.converters.pdf as pdf
+            from marker.models import create_model_dict
+            from marker.output import text_from_rendered
+        except ImportError:
+            raise ImportError("Бібліотека 'marker-pdf' не встановлена. "
+                              "Встановіть її командою: pip install marker-pdf")
+
         logger.info("Ініціалізація Marker PDF converter...")
         try:
             self.converter = pdf.PdfConverter(
-                artifact_dict=create_model_dict(), )
+                artifact_dict=create_model_dict())
             logger.info("Marker PDF converter успішно ініціалізовано")
         except Exception as e:
             logger.error(f"Помилка ініціалізації Marker: {e}")
@@ -69,7 +59,6 @@ class MarkerPDFParser(DocumentParser):
 
     def parse(self, file_path: str | Path) -> str:
         path = Path(file_path)
-
         if not path.exists():
             raise FileNotFoundError(f"File not found: {path}")
 
@@ -111,7 +100,6 @@ class MarkerPDFParser(DocumentParser):
 
         # Обмеження по сторінкам (приблизно)
         if self.config.max_pages:
-            # Приблизна оцінка: ~50 рядків на сторінку
             max_lines = self.config.max_pages * 50
             text_lines = text_lines[:max_lines]
 
@@ -147,39 +135,6 @@ class MarkerPDFParser(DocumentParser):
         except Exception:
             Image = None  # type: ignore
             PIL_AVAILABLE = False
-
-        # def detect_ext_from_bytes(b: Any) -> Optional[str]:
-        #     """Try to detect image extension from bytes using Pillow or simple signatures."""
-        #     # Coerce to bytes if possible
-        #     try:
-        #         if not isinstance(b, (bytes, bytearray)):
-        #             b = bytes(b)
-        #     except Exception:
-        #         return None
-
-        #     # Try Pillow if available
-        #     if PIL_AVAILABLE:
-        #         try:
-        #             from io import BytesIO
-        #             fmt = Image.open(BytesIO(b)).format  # type: ignore[attr-defined]
-        #             if fmt:
-        #                 fmt = fmt.lower()
-        #                 if fmt == 'jpeg':
-        #                     return 'jpg'
-        #                 return fmt
-        #         except Exception:
-        #             pass
-
-        #     # Basic signature checks
-        #     if b.startswith(b"\xff\xd8\xff"):
-        #         return 'jpg'
-        #     if b.startswith(b"\x89PNG\r\n\x1a\n"):
-        #         return 'png'
-        #     if b[:6] in (b'GIF87a', b'GIF89a'):
-        #         return 'gif'
-        #     if b.startswith(b'BM'):
-        #         return 'bmp'
-        #     return None
 
         logger.info(
             f"Знайдено {len(images)} зображень. Збереження у папку: {self.config.processed_dir}/{source_path.stem}/{self.config.images_subdir}"
@@ -219,65 +174,6 @@ class MarkerPDFParser(DocumentParser):
                 logger.warning(
                     f"Не вдалося зберегти PIL image {key_name}: {e}")
 
-            # # bytes
-            # if isinstance(val, (bytes, bytearray)):
-            #     file_bytes = bytes(val)
-            #     ext = detect_ext_from_bytes(file_bytes)
-
-            # # BytesIO-like
-            # elif hasattr(val, "getvalue") and callable(val.getvalue):
-            #     try:
-            #         file_bytes = val.getvalue()
-            #         ext = detect_ext_from_bytes(file_bytes)
-            #     except Exception:
-            #         file_bytes = None
-
-            # # PIL Image
-            # elif Image is not None and isinstance(val, Image.Image):
-            #     # save via PIL
-            #     safe_name = f"{key_name}_{idx}.png"
-            #     out_path = output_dir / safe_name
-            #     try:
-            #         val.save(out_path)
-            #         saved.append(str(out_path))
-            #         logger.debug(f"Збережено (PIL): {out_path}")
-            #         continue
-            #     except Exception as e:
-            #         logger.warning(f"Не вдалося зберегти PIL image {key_name}: {e}")
-
-            # # dict wrappers
-            # elif isinstance(val, dict):
-            #     # try common keys
-            #     for k in ("bytes", "data", "image", "content", "raw"):
-            #         if k in val and isinstance(val[k], (bytes, bytearray)):
-            #             file_bytes = bytes(val[k])
-            #             ext = detect_ext_from_bytes(file_bytes)
-            #             break
-
-            #     # sometimes nested PIL
-            #     if file_bytes is None:
-            #         for k in ("pil", "image_obj"):
-            #             if k in val and Image is not None and isinstance(val[k], Image.Image):
-            #                 safe_name = f"{key_name}_{idx}.png"
-            #                 out_path = output_dir / safe_name
-            #                 try:
-            #                     val[k].save(out_path)
-            #                     saved.append(str(out_path))
-            #                     logger.debug(f"Збережено (nested PIL): {out_path}")
-            #                     file_bytes = None
-            #                     break
-            #                 except Exception:
-            #                     pass
-
-            # # string - maybe base64
-            # elif isinstance(val, str):
-            #     # try base64
-            #     try:
-            #         file_bytes = base64.b64decode(val)
-            #         ext = detect_ext_from_bytes(file_bytes)
-            #     except Exception:
-            #         file_bytes = None
-
             # fallback: try to convert to bytes
             if file_bytes:
                 # ensure bytes-like
@@ -288,7 +184,6 @@ class MarkerPDFParser(DocumentParser):
                     continue
 
                 if not ext:
-                    # default to png if we can't detect
                     ext = "png"
 
                 safe_name = f"{key_name}_{idx}.{ext}"

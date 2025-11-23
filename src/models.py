@@ -5,31 +5,43 @@ from typing import Dict, Any, Optional, List
 @dataclass
 class ProcessorResult:
     """
-    Модель для зберігання результатів обробки документа.
+    Модель для зберігання результатів обробЦчки документа.
     
-    Attributes:
-        processed_text (str): Оброблений текст документа
-        metadata (Dict[str, Any]): Метадані про оригінальний документ
-        original_filename (Optional[str]): Ім'я оригінального файлу
-        processing_info (Dict[str, Any]): Інформація про кроки обробки
     """
     processed_text: str
     metadata: Dict[str, Any] = field(default_factory=dict)
     original_filename: Optional[str] = None
     processing_info: Dict[str, Any] = field(default_factory=dict)
-    
+    chunks: List['TextChunk'] = field(default_factory=list)
+
     def __post_init__(self):
-        """Ініціалізація processing_info якщо порожній."""
         if not self.processing_info:
             self.processing_info = {
                 'text_length': len(self.processed_text),
-                'word_count': len(self.processed_text.split()) if self.processed_text else 0,
                 'cleaning_steps_applied': []
             }
 
+
 @dataclass
-class PreprocessorResult:
-    tokens: List[str]
+class TextChunk:
+    text: str
+    chunk_id: str
+    document_id: str
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+    start_char: int = 0
+    end_char: int = 0
+    chunk_index: int = 0
+
+    def __post_init__(self):
+        # Автоматично додаємо базові метадані
+        if 'char_count' not in self.metadata:
+            self.metadata['char_count'] = len(self.text)
+        if 'start_char' not in self.metadata:
+            self.metadata['start_char'] = self.start_char
+        if 'end_char' not in self.metadata:
+            self.metadata['end_char'] = self.end_char
+
 
 @dataclass
 class EmbedderResult:

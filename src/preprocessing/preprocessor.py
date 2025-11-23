@@ -6,6 +6,7 @@ import asyncio
 from src.preprocessing.worker import *
 from src.preprocessing.pdf_parser import PDFParser, PdfParserConfig
 from src.models import ProcessorResult
+from src.preprocessing.chunker import ChunkerFactory, ChunkingConfig
 
 logger = logging.getLogger(__name__)
 
@@ -109,13 +110,13 @@ class Preprocessor:
 
     def process_document(self,
                          file_path: str,
-                         use_marker: Optional[bool] = None) -> ProcessorResult:
+                         use_marker: Optional[bool] = None,
+                         enable_chunking: bool = True,
+                         chunking_strategy: str = 'semantic',
+                         chunk_size: int = 1000,
+                         chunk_overlap: int = 200) -> ProcessorResult:
         """
         Парсить документ і обробляє через воркерів.
-
-        Args:
-            file_path: Шлях до файлу
-            use_marker: Чи використовувати MarkerPDFParser. Якщо None, використовується значення за замовчуванням
         """
         logger.info(f"Початок обробки документа: {file_path}")
 
@@ -148,8 +149,6 @@ class Preprocessor:
             else:
                 pdf_metadata = {}
 
-            # Зберігаємо оброблений текст
-
             # Створюємо результат
             result = ProcessorResult(
                 processed_text=processed_text,
@@ -170,6 +169,23 @@ class Preprocessor:
                     should_use_marker
                 })
 
+            if enable_chunking:
+                chunking_config = ChunkingConfig(chunk_size=chunk_size,
+                                                 chunk_overlap=chunk_overlap)
+                chunker = ChunkerFactory.create(chunking_strategy,
+                                                chunking_config)
+
+                document_id = Path(file_path).stem
+                chunks = chunker.chunk(result.processed_text, document_id)
+
+                result.chunks = chunks
+                result.processing_info['chunking_strategy'] = chunking_strategy
+                result.processing_info['chunks_count'] = len(chunks)
+
+                logger.info(
+                    f"Created {len(chunks)} chunks using {chunking_strategy} strategy"
+                )
+
             logger.info(
                 f"Обробка документа завершена. Фінальний текст: {len(processed_text)} символів"
             )
@@ -183,7 +199,11 @@ class Preprocessor:
     async def process_document_async(
             self,
             file_path: str,
-            use_marker: Optional[bool] = None) -> ProcessorResult:
+            use_marker: Optional[bool] = None,
+            enable_chunking: bool = True,
+            chunking_strategy: str = 'semantic',
+            chunk_size: int = 1000,
+            chunk_overlap: int = 200) -> ProcessorResult:
         """
         Асинхронна версія process_document.
 
@@ -242,9 +262,22 @@ class Preprocessor:
                     should_use_marker
                 })
 
-            logger.info(
-                f"(async) Обробка документа завершена. Фінальний текст: {len(processed_text)} символів"
-            )
+            if enable_chunking:
+                chunking_config = ChunkingConfig(chunk_size=chunk_size,
+                                                 chunk_overlap=chunk_overlap)
+                chunker = ChunkerFactory.create(chunking_strategy,
+                                                chunking_config)
+
+                document_id = Path(file_path).stem
+                chunks = chunker.chunk(result.processed_text, document_id)
+
+                result.chunks = chunks
+                result.processing_info['chunking_strategy'] = chunking_strategy
+                result.processing_info['chunks_count'] = len(chunks)
+
+                logger.info(
+                    f"Created {len(chunks)} chunks using {chunking_strategy} strategy"
+                )
 
             return result
 
@@ -252,43 +285,6 @@ class Preprocessor:
             logger.error(
                 f"(async) Помилка обробки документа {file_path}: {str(e)}")
             raise
-
-    def save_document(self, file_path: str, content: str) -> None:
-        """Зберігає оброблений текст у файл."""
-        try:
-            file_stem = Path(file_path).stem
-            out_dir = Path(f"data/processed/{file_stem}")
-            out_file = out_dir / 'processed1.txt'
-
-            out_dir.mkdir(parents=True, exist_ok=True)
-
-            with open(out_file, "w", encoding="utf-8") as doc:
-                doc.write(content)
-
-            logger.info(f"Збережено оброблений текст у: {out_file}")
-        except Exception as e:
-            logger.warning(
-                f"Не вдалося автоматично зберегти оброблений текст: {e}")
-
-    async def save_document_async(self, file_path: str, content: str) -> None:
-        """Асинхронно зберігає оброблений текст у файл."""
-        try:
-            file_stem = Path(file_path).stem
-            out_dir = Path(f"data/processed/{file_stem}")
-            out_file = out_dir / 'processed1.txt'
-
-            out_dir.mkdir(parents=True, exist_ok=True)
-
-            # Файлові операції в треді
-            async def write_file(path: Path, content: str):
-                await asyncio.to_thread(path.write_text, content, "utf-8")
-
-            await write_file(out_file, content)
-            logger.info(f"(async) Збережено оброблений текст у: {out_file}")
-        except Exception as e:
-            logger.warning(
-                f"(async) Не вдалося автоматично зберегти оброблений текст: {e}"
-            )
 
     def set_marker_pdf_config(self, config: Optional[object]) -> None:
         """Оновлює конфігурацію Marker PDF парсера.
