@@ -1,80 +1,203 @@
-## Description
-This project is an AI agent designed to answer questions based on loaded documentation using RAG (Retrieval-Augmented Generation) architecture.  
-It includes modules for document preprocessing, text vectorization (embedding), clustering, storage, and pipeline orchestration.
+# RAG System with LangChain & Ollama
 
+## Description
+AI-powered question-answering system built with **RAG (Retrieval-Augmented Generation)** architecture. The system uses **LangChain** and **LangGraph** for agent orchestration, **Ollama** for local LLM inference, **FAISS** for vector storage, and **Sentence Transformers** for embeddings.
+
+### Key Features
+- 🤖 **LangGraph-based Agent** - Modular RAG workflow with retrieve → prompt → generate pipeline
+- 🏠 **Local LLM** - Runs on Ollama (Qwen2.5:7b) - no API costs
+- 🌐 **Web UI** - Interactive chat interface via LangServe Playground
+- 📚 **Document Processing** - Supports PDF and TXT files with advanced preprocessing
+- 🔍 **Semantic Search** - FAISS vector database with similarity search
+- 💬 **CLI Mode** - Interactive terminal interface for quick queries
+
+## Prerequisites
+
+1. **Install Ollama** and download the model:
+   ```bash
+   # Install Ollama from https://ollama.ai
+   ollama pull qwen2.5:7b
+   ```
+
+2. **Python 3.8+** with virtual environment support
 
 ## Installation
 
-1. Clone the repository and navigate to the project folder  
+1. Clone the repository:
    ```bash
    git clone <repo-url>
    cd RAG-system
    ```
 
-2. Create and activate a Python virtual environment  
+2. Create and activate virtual environment:
    ```bash
-   python -m venv venv
-   source venv/bin/activate      # Linux/Mac
-   venv\Scripts\activate         # Windows
+   python -m venv .venv
+   .venv\Scripts\activate      # Windows
+   source .venv/bin/activate   # Linux/Mac
    ```
 
-3. Install dependencies  
+3. Install dependencies:
    ```bash
    pip install -r requirements.txt
    ```
 
-4. Configure environment variables based on example  
-   ```bash   
-   # Edit .env with your API keys and settings
+4. Configure environment variables (optional):
+   ```bash
+   # Edit .env file if needed
+   # Default values work out of the box
    ```
+
+## Quick Start
+
+### 1. Index Your Documents
+
+Place PDF or TXT files in `data/raw/`, then run:
+
+```bash
+python main.py --mode index
+```
+
+This will:
+- Process and clean documents
+- Generate embeddings using Sentence Transformers
+- Store vectors in FAISS index at `data/indexes/knowledge_base`
+
+### 2. Start the Web Interface
+
+```bash
+python server.py
+```
+
+Open your browser at: **http://localhost:8000/rag/playground/**
+
+You'll see an interactive chat interface where you can ask questions about your documents.
+
+### 3. CLI Mode (Alternative)
+
+For terminal-based interaction:
+
+```bash
+python main.py --mode interactive
+```
+
+Or single query mode:
+
+```bash
+python main.py --mode query --question "Що таке мікросервіси?"
+```
 
 ## Project Structure
 
 ```
-ai-agent-documentation/
+RAG-system/
 │
-├── .gitignore
-├── .env
-├── README.md
-├── requirements.txt
-├── main.py
+├── server.py              # LangServe web server entry point
+├── main.py                # CLI entry point
+├── requirements.txt       # Python dependencies
+├── .env                   # Environment configuration
 │
 ├── src/
-│   ├── models.py           # Data models (ProcessorResult, EmbedderResult, etc.)
-│   ├── utils.py            # Utilities (env loading, get_prompt_by_id, logging)
+│   ├── agent/             # LangGraph agent & LLM clients
+│   │   ├── agent.py       # AIAgent with LangGraph workflow
+│   │   ├── llm_client.py  # Ollama & Perplexity clients
+│   │   ├── retriever.py   # Document retrieval logic
+│   │   └── prompt_builder.py
 │   │
-│   ├── preprocessing/      # Preprocessor & text cleaning strategies
-│   ├── embeddings/         # Embedder & embedding implementations
-│   ├── storage/            # Storage & storage implementations
-│   ├── pipeline/           # Pipeline orchestration and stages
-│   └── agent/              # Main AI agent interface
+│   ├── preprocessing/     # Document processing pipeline
+│   ├── embeddings/        # Sentence Transformers embedder
+│   ├── storage/           # FAISS vector storage
+│   └── models.py          # Data models
 │
-├── prompts/                # Prompts JSON and templates
+├── data/
+│   ├── raw/               # Place your documents here
+│   └── indexes/           # Generated FAISS indexes
 │
-├── config/                 # Configuration and logging setup
-│
-├── tests/                  # Unit tests for components
-│
-└── data/                   # Data folders (raw, processed, embeddings)
+├── prompts/               # System prompts
+├── config/                # Logging configuration
+└── tests/                 # Unit tests
 ```
 
-## Running the Project
+## Architecture
+
+The system uses **LangGraph** to orchestrate the RAG workflow:
+
+```
+User Query → Retrieve (FAISS) → Build Prompt → Generate (Ollama) → Response
+```
+
+### Components
+
+1. **Retriever** - Finds relevant document chunks using semantic search
+2. **Prompt Builder** - Constructs context-aware prompts
+3. **LLM Client** - Generates answers via Ollama (local) or Perplexity API
+4. **Agent** - Orchestrates the workflow using LangGraph
+
+## Configuration
+
+Edit `.env` to customize:
 
 ```bash
-python main.py
+# LLM Settings
+LLM_PROVIDER=ollama
+LLM_MODEL=qwen2.5:7b
+LLM_TEMPERATURE=0.1
+LLM_MAX_TOKENS=500
+
+# Embeddings
+EMBEDDER_MODEL=sentence-transformers/all-MiniLM-L6-v2
+
+# Retrieval
+TOP_K=5
+MIN_SIMILARITY=0.3
+
+# Chunking
+CHUNK_SIZE=500
+CHUNK_OVERLAP=100
 ```
 
-## Development and Git Workflow
+## API Documentation
 
-- Create feature branches:
-  ```bash
-  git checkout -b feature/preprocessor
-  ```
-- After implementing tasks, make a Pull Request to `main`/`master`
-- Reference Jira issues and provide summary in PR description
+When `server.py` is running, visit:
+- **Playground**: http://localhost:8000/rag/playground/
+- **API Docs**: http://localhost:8000/docs
 
-## Testing
+## Development
+
+### Running Tests
 
 ```bash
 pytest tests/ --cov=src
 ```
+
+### Git Workflow
+
+```bash
+git checkout -b feature/your-feature
+# Make changes
+git commit -m "Description"
+git push origin feature/your-feature
+```
+
+## Technologies
+
+- **LangChain** & **LangGraph** - Agent framework
+- **Ollama** - Local LLM runtime
+- **FAISS** - Vector database
+- **Sentence Transformers** - Embeddings
+- **FastAPI** - Web server
+- **LangServe** - LangChain deployment
+
+## Troubleshooting
+
+### "Index not found"
+Run `python main.py --mode index` first to create the index.
+
+### "Ollama connection error"
+Make sure Ollama is running: `ollama serve`
+
+### Empty responses in web UI
+Check server logs for `DEBUG:` messages. Restart server after code changes.
+
+## License
+
+MIT
