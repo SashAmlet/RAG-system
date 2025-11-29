@@ -6,6 +6,9 @@ from dotenv import load_dotenv
 from rich.console import Console
 from rich.markdown import Markdown
 from pathlib import Path
+from config import logging_config
+
+logging_config.configure_logging()
 
 from src.preprocessing.preprocessor_factory import PreprocessorFactory
 from src.embeddings.embedder import EmbedderFactory
@@ -17,6 +20,7 @@ from src.agent.llm_client import LLMClientFactory
 load_dotenv()
 
 console = Console()
+
 
 
 def index_documents(preprocessor, embedder, storage, data_dir="data/raw"):

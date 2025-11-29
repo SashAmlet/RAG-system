@@ -1,8 +1,9 @@
 from abc import ABC, abstractmethod
 from typing import Optional, Dict, Any
-import requests
 import logging
 import time
+from langchain_ollama import ChatOllama
+from langchain_core.messages import SystemMessage, HumanMessage
 
 logger = logging.getLogger(__name__)
 
@@ -124,6 +125,53 @@ class PerplexityClient(LLMClient):
             raise Exception(f"Помилка при зверненні до LLM: {str(e)}")
 
 
+
+class OllamaClient(LLMClient):
+    """
+    Клієнт для Ollama (локальні моделі).
+    Використовує langchain_ollama.
+    """
+
+    def __init__(self, model: str = "qwen2.5:7b", temperature: float = 0.1):
+        self.model = model
+        self.temperature = temperature
+        self.llm = ChatOllama(model=model, temperature=temperature)
+        logger.info(f"OllamaClient ініціалізовано. Модель: {model}")
+
+    def generate(self,
+                 system_prompt: str,
+                 user_prompt: str,
+                 temperature: float = 0.1,
+                 max_tokens: int = 500) -> str:
+        """
+        Генерує відповідь через Ollama.
+        """
+        logger.info(f"Відправка запиту до Ollama (model={self.model})")
+        start_time = time.time()
+
+        try:
+            messages = [
+                SystemMessage(content=system_prompt),
+                HumanMessage(content=user_prompt)
+            ]
+            
+            # Оновлюємо температуру якщо змінилась
+            if temperature != self.temperature:
+                self.llm.temperature = temperature
+
+            response = self.llm.invoke(messages)
+            answer = response.content
+
+            duration = time.time() - start_time
+            logger.info(f"Відповідь отримано за {duration:.2f}s")
+
+            return answer.strip()
+
+        except Exception as e:
+            logger.error(f"Помилка Ollama: {str(e)}")
+            raise Exception(f"Помилка при зверненні до Ollama: {str(e)}")
+
+
 class LLMClientFactory:
     """Фабрика для створення LLM клієнтів"""
 
@@ -145,5 +193,8 @@ class LLMClientFactory:
             return PerplexityClient(api_key=kwargs["api_key"],
                                     model=kwargs.get("model", "sonar"),
                                     timeout=kwargs.get("timeout", 30))
+        elif provider == "ollama":
+            return OllamaClient(model=kwargs.get("model", "qwen2.5:7b"),
+                                temperature=kwargs.get("temperature", 0.1))
         else:
             raise ValueError(f"Unknown provider: {provider}")

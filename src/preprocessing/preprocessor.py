@@ -18,9 +18,9 @@ class Preprocessor:
     """
 
     def __init__(
-            self,
-            workers: Optional[List[Worker]] = None,
-            default_parser: str = "auto"  # 'pdf', 'txt', 'auto'
+        self,
+        workers: Optional[List[Worker]] = None,
+        default_parser: str = "auto",  # 'pdf', 'txt', 'auto'
     ):
         """
         Args:
@@ -32,11 +32,16 @@ class Preprocessor:
         # Workers pipeline
         if workers is None:
             # Дефолтний pipeline
-            from src.preprocessing.worker import (UnicodeNormalizer,
-                                                  FixHyphenUk, TextCleaner,
-                                                  ParagraphFixer, EscapeFixer,
-                                                  RemovePageNumbers,
-                                                  SingleLineifier)
+            from src.preprocessing.worker import (
+                UnicodeNormalizer,
+                FixHyphenUk,
+                TextCleaner,
+                ParagraphFixer,
+                EscapeFixer,
+                RemovePageNumbers,
+                SingleLineifier,
+            )
+
             self.workers = [
                 UnicodeNormalizer(),
                 FixHyphenUk(),
@@ -44,25 +49,27 @@ class Preprocessor:
                 ParagraphFixer(),
                 EscapeFixer(),
                 RemovePageNumbers(),
-                SingleLineifier()
+                SingleLineifier(),
             ]
         else:
             self.workers = workers
 
-    def process_document(self,
-                         file_path: str,
-                         parser: Optional[Union[str, IDocumentParser]] = None,
-                         enable_chunking: bool = True,
-                         **chunking_kwargs) -> ProcessorResult:
+    def process_document(
+        self,
+        file_path: str,
+        parser: Optional[Union[str, IDocumentParser]] = None,
+        enable_chunking: bool = True,
+        **chunking_kwargs,
+    ) -> ProcessorResult:
         """
         Обробляє документ будь-якого підтримуваного формату.
-        
+
         Args:
             file_path: Шлях до файлу
             parser: Парсер ('pdf', 'txt', 'auto') або екземпляр IDocumentParser
             enable_chunking: Чи розбивати на чанки
             **chunking_kwargs: Параметри для chunking
-            
+
         Returns:
             ProcessorResult з обробленим текстом та чанками
         """
@@ -81,8 +88,7 @@ class Preprocessor:
             parser_instance = parser
 
         # 2. Парсимо документ
-        logger.info(
-            f"Використовується парсер: {parser_instance.__class__.__name__}")
+        logger.info(f"Використовується парсер: {parser_instance.__class__.__name__}")
         raw_text = parser_instance.parse(file_path)
         logger.info(f"Витягнуто {len(raw_text)} символів")
 
@@ -95,32 +101,33 @@ class Preprocessor:
                 processed_text = worker.process(processed_text)
                 applied_workers.append(worker.__class__.__name__)
             except Exception as e:
-                logger.error(
-                    f"Помилка в worker {worker.__class__.__name__}: {e}")
+                logger.error(f"Помилка в worker {worker.__class__.__name__}: {e}")
+
+        logger.info(f"Результат після воркерів: {len(processed_text)} символів")
 
         # 4. Створюємо результат
-        result = ProcessorResult(processed_text=processed_text,
-                                 original_filename=Path(file_path).name,
-                                 metadata={
-                                     "file_size":
-                                     Path(file_path).stat().st_size,
-                                     "parser":
-                                     parser_instance.__class__.__name__
-                                 },
-                                 processing_info={
-                                     "text_length": len(processed_text),
-                                     "cleaning_steps_applied": applied_workers
-                                 })
+        result = ProcessorResult(
+            processed_text=processed_text,
+            original_filename=Path(file_path).name,
+            metadata={
+                "file_size": Path(file_path).stat().st_size,
+                "parser": parser_instance.__class__.__name__,
+            },
+            processing_info={
+                "text_length": len(processed_text),
+                "cleaning_steps_applied": applied_workers,
+            },
+        )
 
         # 5. Chunking
         if enable_chunking:
             from src.preprocessing.chunker import ChunkerFactory, ChunkingConfig
 
-            chunking_strategy = chunking_kwargs.pop('chunking_strategy',
-                                                    'semantic')
+            chunking_strategy = chunking_kwargs.pop("chunking_strategy", "semantic")
             config = ChunkingConfig(
-                chunk_size=chunking_kwargs.get('chunk_size', 800),
-                chunk_overlap=chunking_kwargs.get('chunk_overlap', 150))
+                chunk_size=chunking_kwargs.get("chunk_size", 800),
+                chunk_overlap=chunking_kwargs.get("chunk_overlap", 150),
+            )
 
             chunker = ChunkerFactory.create(chunking_strategy, config)
             result.chunks = chunker.chunk(processed_text, result.document_id)
