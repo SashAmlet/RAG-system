@@ -82,3 +82,26 @@ class SearchResult:
         # Копіюємо метадані з чанка
         if not self.metadata and self.chunk:
             self.metadata = self.chunk.metadata.copy()
+
+
+@dataclass
+class AgentResponse:
+    """
+    Відповідь AIAgent на запит користувача.
+    """
+    answer: str  # Текст відповіді
+    sources: List[SearchResult]  # Джерела (релевантні чанки)
+    query: str  # Оригінальний запит
+    metadata: Dict[str, Any] = field(
+        default_factory=dict)  # Метадані (час, токени, модель)
+
+    def get_sources_text(self) -> str:
+        """Форматує джерела для показу користувачу"""
+        if not self.sources:
+            return "Джерела не знайдено"
+
+        result = []
+        for i, src in enumerate(self.sources, 1):
+            result.append(
+                f"[{i}] (Score: {src.score:.3f}) {src.chunk.text[:100]}...")
+        return "\n".join(result)
