@@ -62,7 +62,13 @@ This will:
 - Generate embeddings using Sentence Transformers
 - Store vectors in FAISS index at `data/indexes/knowledge_base`
 
-### 2. Start the Web Interface
+### 2. Start Ollama server
+
+```bash
+ollama serve
+```
+
+### 3. Start the Web Interface
 
 ```bash
 python server.py
@@ -72,7 +78,7 @@ Open your browser at: **http://localhost:8000/rag/playground/**
 
 You'll see an interactive chat interface where you can ask questions about your documents.
 
-### 3. CLI Mode (Alternative)
+### 4. CLI Mode (Alternative)
 
 For terminal-based interaction:
 
