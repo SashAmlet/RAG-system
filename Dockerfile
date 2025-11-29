@@ -1,41 +1,36 @@
 # Базовий образ з Python
 FROM python:3.13-slim
 
-# Metadata
-LABEL maintainer="dmytro.kosiachenko1@gmail.com"
-LABEL description="RAG System for document Q&A"
-
 # Встановлюємо системні залежності
 RUN apt-get update && apt-get install -y \
     build-essential \
-    curl \
     git \
     && rm -rf /var/lib/apt/lists/*
 
-# Встановлюємо робочу директорію
+# Робоча директорія
 WORKDIR /app
 
-# Копіюємо файли залежностей
+# Копіюємо requirements
 COPY requirements.txt .
 
 # Встановлюємо Python залежності
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Копіюємо весь проєкт
+# Завантажуємо NLTK дані (якщо потрібні)
+RUN python -c "import nltk; nltk.download('punkt'); nltk.download('stopwords')"
+
+# Копіюємо код проєкту
 COPY . .
 
 # Створюємо директорії для даних
-RUN mkdir -p /app/data/documents \
-             /app/data/indexes \
-             /app/data/logs
+RUN mkdir -p data/raw data/processed data/indexes
 
-# Встановлюємо змінні середовища
-ENV PYTHONPATH=/app
+# Змінні середовища
 ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
 
-# Expose порт для API (якщо буде)
+# Порт для можливого веб-інтерфейсу (якщо додасте пізніше)
 EXPOSE 8000
 
-# Команда запуску за замовчуванням
+# Точка входу
 CMD ["python", "main.py"]

@@ -1,4 +1,6 @@
 from abc import ABC, abstractmethod
+import os
+from pathlib import Path
 from typing import List, Optional
 from sentence_transformers import SentenceTransformer
 import logging
@@ -30,6 +32,7 @@ class SentenceBERTEmbedder(IEmbedder):
 
     def __init__(self,
                  model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
+                 local_model_name: str = "all-MiniLM-L6-v2",
                  device: Optional[str] = None,
                  batch_size: int = 32):
         """
@@ -38,9 +41,19 @@ class SentenceBERTEmbedder(IEmbedder):
             device: 'cuda', 'cpu' або None (авто)
             batch_size: Розмір батча для batch_encode
         """
-        logger.info(f"Завантаження SBERT моделі: {model_name}")
+
         self.model_name = model_name
-        self.model = SentenceTransformer(model_name, device=device)
+
+        project_root = Path(__file__).resolve().parent.parent.parent
+        load_path = project_root / "local_models" / local_model_name
+
+        if os.path.exists(load_path):
+            logger.info(f"Знайдено локальну модель: {local_model_name}")
+            self.model = SentenceTransformer(str(load_path), device=device)
+        else:
+            logger.info(f"Завантаження SBERT моделі: {model_name}")
+            self.model = SentenceTransformer(self.model_name, device=device)
+
         self.batch_size = batch_size
         self.embedding_dim = self.model.get_sentence_embedding_dimension()
         logger.info(f"Модель завантажена. Розмірність: {self.embedding_dim}")

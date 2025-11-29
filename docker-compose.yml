@@ -2,50 +2,14 @@ version: '3.8'
 
 services:
   rag-system:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    build: .
     container_name: rag-system
-    
-    # Volumes для збереження даних
+    environment:
+      - PERPLEXITY_API_KEY=${PERPLEXITY_API_KEY}
     volumes:
-      - ./data/documents:/app/data/documents
-      - ./data/indexes:/app/data/indexes
-      - ./data/logs:/app/data/logs
+      # Монтуємо директорії для даних
+      - ./data:/app/data
       - ./config:/app/config
-    
-    # Environment variables
-    environment:
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - LOG_LEVEL=INFO
-      - STORAGE_PATH=/app/data/indexes
-    
-    # Порти (якщо буде API)
-    ports:
-      - "8000:8000"
-    
-    # Restart policy
-    restart: unless-stopped
-    
-    # Команда запуску
+    stdin_open: true  # Для інтерактивного режиму
+    tty: true
     command: python main.py --mode interactive
-
-  # Опціонально: окремий контейнер для обробки документів
-  document-processor:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: rag-processor
-    
-    volumes:
-      - ./data/documents:/app/data/documents
-      - ./data/indexes:/app/data/indexes
-    
-    environment:
-      - LOG_LEVEL=INFO
-    
-    # Запускається лише для обробки
-    command: python main.py --mode index --input /app/data/documents
-    
-    # Не перезапускається автоматично
-    restart: "no"

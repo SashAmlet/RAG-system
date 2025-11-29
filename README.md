@@ -2,26 +2,6 @@
 This project is an AI agent designed to answer questions based on loaded documentation using RAG (Retrieval-Augmented Generation) architecture.  
 It includes modules for document preprocessing, text vectorization (embedding), clustering, storage, and pipeline orchestration.
 
-## Upcoming Sprint Tasks
-
-### 1. Implement the Preprocessor
-- The `Preprocessor` class should:
-  - Accept input files (.pdf, .doc, .docx)
-  - Extract text while cleaning unnecessary content (images, links, etc.)
-  - Handle special cases such as tables and hyphenations
-  - Return a `ProcessorResult` model containing cleaned text and metadata
-- Architecture:
-  - Use the Strategy pattern for text cleaning strategies (`TextCleaner`)
-  - Use the Factory pattern to easily add support for new file types without modifying main code
-
-### 2. Implement the Embedder
-- The `Embedder` class should:
-  - Take in `ProcessorResult` from Preprocessor
-  - Convert cleaned text to vector representations using embedding techniques
-  - Return an `EmbedderResult` model containing the vector and related info
-- Architecture:
-  - Use Strategy/Factory pattern to support multiple embedding methods (e.g., TF-IDF, Word2Vec, SBERT, OpenAI)
-  - Allow easy switching and adding of new embedding implementations
 
 ## Installation
 
@@ -65,7 +45,6 @@ ai-agent-documentation/
 │   │
 │   ├── preprocessing/      # Preprocessor & text cleaning strategies
 │   ├── embeddings/         # Embedder & embedding implementations
-│   ├── clustering/         # Clusterer & clustering implementations
 │   ├── storage/            # Storage & storage implementations
 │   ├── pipeline/           # Pipeline orchestration and stages
 │   └── agent/              # Main AI agent interface

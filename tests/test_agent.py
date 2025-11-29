@@ -37,7 +37,7 @@ def test_agent_with_mock_data():
     llm_client = LLMClientFactory.create(
         provider="perplexity",
         api_key=PERPLEXITY_API_KEY,
-        model="llama-3.1-sonar-small-128k-online"  # Економна модель
+        model="sonar"  # Економна модель
     )
 
     # 2. Додаємо тестові документи

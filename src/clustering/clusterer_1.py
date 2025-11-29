@@ -1,1 +1,0 @@
-"""First clustering implementation placeholder."""

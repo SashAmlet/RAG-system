@@ -1,2 +1,0 @@
-"""Second clustering implementation placeholder."""
-

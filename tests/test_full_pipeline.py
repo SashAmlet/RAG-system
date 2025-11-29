@@ -3,7 +3,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.preprocessing.preprocessor import Preprocessor
+from src.preprocessing.preprocessor_factory import PreprocessorFactory
 from src.embeddings.embedder import EmbedderFactory
 from src.storage.storage import FAISSStorage
 from src.models import ProcessorResult, TextChunk
@@ -16,9 +16,9 @@ def test_full_pipeline():
     print("=" * 70)
 
     # 1. Створюємо компоненти
-    preprocessor = Preprocessor()
-    embedder = EmbedderFactory.create(method="sbert")
-    storage = FAISSStorage(dimension=384)
+    preprocessor = PreprocessorFactory.create()
+    embedder = EmbedderFactory.create()
+    storage = FAISSStorage()
 
     print("✅ Компоненти створено\n")
 
@@ -33,7 +33,7 @@ def test_full_pipeline():
     )
 
     # 4. Додаємо в storage
-    storage.add(embeddings)
+    storage.add(embeddings, result.chunks)
     stats = storage.get_stats()
     print(f"💾 Індекс створено:")
     print(f"   - Векторів: {stats['total_vectors']}")

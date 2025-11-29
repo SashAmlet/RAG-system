@@ -26,15 +26,12 @@ class PerplexityClient(LLMClient):
     Підтримує різні моделі Llama, Claude, GPT через Perplexity.
     """
 
-    def __init__(self,
-                 api_key: str,
-                 model: str = "llama-3.1-sonar-small-128k-online",
-                 timeout: int = 30):
+    def __init__(self, api_key: str, model: str = "sonar", timeout: int = 30):
         """
         Args:
             api_key: Perplexity API ключ
             model: Назва моделі
-                   - llama-3.1-sonar-small-128k-online (дешево, якісно)
+                   - sonar (дешево, якісно)
                    - llama-3.1-sonar-large-128k-online (дорожче, краще)
                    - llama-3.1-sonar-huge-128k-online (найкраще)
             timeout: Таймаут запиту (секунди)

@@ -46,6 +46,7 @@ Thumbs.db
 data/raw/*
 data/processed/*
 data/embeddings/*
+data/indexes/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep
 !data/embeddings/.gitkeep

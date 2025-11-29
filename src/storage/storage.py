@@ -15,7 +15,8 @@ class IStorage(ABC):
     """Базовий інтерфейс для векторного сховища"""
 
     @abstractmethod
-    def add(self, embeddings: List[EmbedderResult]) -> None:
+    def add(self, embeddings: List[EmbedderResult],
+            chunks: List[TextChunk]) -> None:
         """Додає вектори в індекс"""
         pass
 
@@ -27,12 +28,12 @@ class IStorage(ABC):
         pass
 
     @abstractmethod
-    def save(self, filepath: str) -> None:
+    def save(self, file_path: str | Path) -> None:
         """Зберігає індекс на диск"""
         pass
 
     @abstractmethod
-    def load(self, filepath: str) -> None:
+    def load(self, file_path: str | Path) -> None:
         """Завантажує індекс з диску"""
         pass
 
@@ -82,7 +83,8 @@ class FAISSStorage(IStorage):
         norms[norms == 0] = 1  # Уникаємо ділення на 0
         return vectors / norms
 
-    def add(self, embeddings: List[EmbedderResult]) -> None:
+    def add(self, embeddings: List[EmbedderResult],
+            chunks: List[TextChunk]) -> None:
         """
         Додає вектори в індекс (інкрементально).
         
@@ -92,6 +94,11 @@ class FAISSStorage(IStorage):
         if not embeddings:
             logger.warning("Отримано порожній список embeddings")
             return
+
+        if len(embeddings) != len(chunks):
+            raise ValueError(
+                f"Кількість embeddings ({len(embeddings)}) не співпадає з chunks ({len(chunks)})"
+            )
 
         logger.info(f"Додавання {len(embeddings)} векторів в індекс")
 
@@ -106,19 +113,16 @@ class FAISSStorage(IStorage):
         self.index.add(vectors)
 
         # Зберігаємо metadata
-        for i, emb in enumerate(embeddings):
+        for i, (emb, chunk) in enumerate(zip(embeddings, chunks)):
             faiss_id = self.next_id + i
 
-            # Створюємо TextChunk з metadata
-            chunk = TextChunk(
-                text=emb.metadata.get('text', ''),  # Якщо текст був збережений
-                chunk_id=emb.chunk_id,
-                document_id=emb.document_id,
-                chunk_index=emb.metadata.get('chunk_index', 0),
-                metadata=emb.metadata)
+            if emb.chunk_id != chunk.chunk_id:
+                logger.warning(
+                    f"chunk_id не співпадає: emb={emb.chunk_id}, chunk={chunk.chunk_id}"
+                )
 
             self.metadata_store[faiss_id] = chunk
-            self.chunk_id_to_faiss_id[emb.chunk_id] = faiss_id
+            self.chunk_id_to_faiss_id[chunk.chunk_id] = faiss_id
 
         self.next_id += len(embeddings)
 
@@ -170,18 +174,18 @@ class FAISSStorage(IStorage):
         logger.info(f"Знайдено {len(results)} результатів")
         return results
 
-    def save(self, filepath: str) -> None:
+    def save(self, file_path: str | Path) -> None:
         """
         Зберігає індекс + metadata на диск.
         
         Args:
             filepath: Шлях без розширення (додасться .faiss та .pkl)
         """
-        filepath = Path(filepath)
-        filepath.parent.mkdir(parents=True, exist_ok=True)
+        file_path = Path(file_path)
+        file_path.parent.mkdir(parents=True, exist_ok=True)
 
-        faiss_path = str(filepath) + ".faiss"
-        metadata_path = str(filepath) + ".pkl"
+        faiss_path = str(file_path) + ".faiss"
+        metadata_path = str(file_path) + ".pkl"
 
         faiss.write_index(self.index, faiss_path)
 
@@ -198,15 +202,15 @@ class FAISSStorage(IStorage):
 
         logger.info(f"Індекс збережено: {faiss_path}, {metadata_path}")
 
-    def load(self, filepath: str) -> None:
+    def load(self, file_path: str | Path) -> None:
         """
         Завантажує індекс + metadata з диску.
         
         Args:
             filepath: Шлях без розширення
         """
-        faiss_path = str(filepath) + ".faiss"
-        metadata_path = str(filepath) + ".pkl"
+        faiss_path = str(file_path) + ".faiss"
+        metadata_path = str(file_path) + ".pkl"
 
         # Перевірка існування файлів
         if not Path(faiss_path).exists():

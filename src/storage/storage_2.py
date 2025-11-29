@@ -1,2 +1,0 @@
-"""Second storage backend placeholder."""
-

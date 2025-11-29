@@ -5,7 +5,7 @@ from typing import Optional, List
 
 import pdfplumber
 
-from .document_parser import DocumentParser
+from .document_parser import IDocumentParser
 
 
 @dataclass
@@ -21,7 +21,7 @@ class PdfParserConfig:
     max_pages: Optional[int] = None
 
 
-class PDFParser(DocumentParser):
+class PDFParser(IDocumentParser):
     """
     Парсер PDF-документів на базі pdfplumber.
     """
@@ -101,10 +101,9 @@ class PDFParser(DocumentParser):
 
         return "\n\n".join(blocks)
 
+    def supports(self, file_path: str | Path) -> bool:
+        """Перевіряє чи це PDF"""
+        return Path(file_path).suffix.lower() == '.pdf'
 
-def parse_pdf(file_path: str | Path,
-              config: Optional[PdfParserConfig] = None) -> str:
-    """
-    Зручна функція для швидкого парсингу PDF без створення екземпляра класу.
-    """
-    return PDFParser(config).parse(file_path)
+    def get_supported_extensions(self) -> List[str]:
+        return ['.pdf']

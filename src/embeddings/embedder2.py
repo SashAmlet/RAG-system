@@ -1,1 +1,0 @@
-"""Second concrete embedder placeholder."""

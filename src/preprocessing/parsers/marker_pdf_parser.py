@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 import logging
-from .document_parser import DocumentParser
+from .document_parser import IDocumentParser
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ class MarkerPdfParserConfig:
     processed_text_filename: str = "processed.txt"
 
 
-class MarkerPDFParser(DocumentParser):
+class MarkerPDFParser(IDocumentParser):
     """
     Парсер PDF-документів на базі marker-pdf з підтримкою формул.
     Автоматично розпізнає формули та конвертує їх у LaTeX.
@@ -220,9 +220,9 @@ class MarkerPDFParser(DocumentParser):
             }
         }
 
+    def supports(self, file_path: str | Path) -> bool:
+        """Перевіряє чи це PDF"""
+        return Path(file_path).suffix.lower() == '.pdf'
 
-def parse_pdf_with_marker(
-        file_path: str | Path,
-        config: Optional[MarkerPdfParserConfig] = None) -> str:
-    """Зручна функція для швидкого парсингу PDF"""
-    return MarkerPDFParser(config).parse(file_path)
+    def get_supported_extensions(self) -> List[str]:
+        return ['.pdf']

@@ -1,13 +1,24 @@
+# .dockerignore
+
 # Python
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
-venv/
 env/
+venv/
 ENV/
 .venv
+
+# Дані (будемо монтувати через volumes)
+data/raw/*
+data/processed/*
+data/indexes/*
+
+# Git
+.git
+.gitignore
 
 # IDE
 .vscode/
@@ -15,30 +26,15 @@ ENV/
 *.swp
 *.swo
 
-# Data (не копіюємо великі файли в образ)
-data/documents/*.pdf
-data/indexes/*.faiss
-data/indexes/*.pkl
-*.faiss
-*.pkl
+# Тести
+tests/
+*.pytest_cache
 
-# Tests
-.pytest_cache/
-.coverage
-htmlcov/
+# Документація
+docs/
+*.md
+!README.md
 
-# Git
-.git/
-.gitignore
-
-# Logs
+# Інше
+.env
 *.log
-logs/
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Temporary
-tmp/
-temp/

@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ChunkingConfig:
     """Конфігурація для chunker"""
-    chunk_size: int = 800  # символів
+    chunk_size: int = 500  # символів
     chunk_overlap: int = 150  # перекриття між chunks
     min_chunk_size: int = 100  # мінімальний розмір chunk
     respect_sentence_boundaries: bool = True

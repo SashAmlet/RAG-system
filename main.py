@@ -1,128 +1,199 @@
+# main.py
+
+import os
 import argparse
-import logging
+from dotenv import load_dotenv
+from rich.console import Console
+from rich.markdown import Markdown
 from pathlib import Path
 
-from src.preprocessing.preprocessor import Preprocessor
+from src.preprocessing.preprocessor_factory import PreprocessorFactory
 from src.embeddings.embedder import EmbedderFactory
 from src.storage.storage import FAISSStorage
+from src.agent.agent import AIAgent
+from src.agent.llm_client import LLMClientFactory
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Завантажуємо змінні середовища
+load_dotenv()
 
-
-def index_documents(input_path: str, output_path: str):
-    """Індексація документів"""
-    logger.info(f"Початок індексації документів з {input_path}")
-
-    # Ініціалізація компонентів
-    preprocessor = Preprocessor()
-    embedder = EmbedderFactory.create(method="sbert")
-    storage = FAISSStorage(dimension=384)
-
-    # Обробка документів
-    pdf_files = list(Path(input_path).glob("*.pdf"))
-    logger.info(f"Знайдено {len(pdf_files)} PDF файлів")
-
-    for pdf_file in pdf_files:
-        try:
-            logger.info(f"Обробка: {pdf_file.name}")
-
-            # Preprocessor + Chunking
-            result = preprocessor.process_document(file_path=str(pdf_file),
-                                                   enable_chunking=True,
-                                                   chunk_size=500,
-                                                   chunk_overlap=100)
-
-            if not result.chunks:
-                logger.warning(f"Немає чанків для {pdf_file.name}")
-                continue
-
-            # Embedding
-            embeddings = embedder.embed_batch(result.chunks)
-
-            # Storage
-            storage.add(embeddings)
-
-            logger.info(f"✅ Оброблено: {len(result.chunks)} чанків")
-
-        except Exception as e:
-            logger.error(f"Помилка обробки {pdf_file.name}: {e}")
-
-    # Збереження індексу
-    storage.save(output_path)
-    stats = storage.get_stats()
-    logger.info(f"📊 Індекс збережено: {stats}")
+console = Console()
 
 
-def interactive_mode(index_path: str):
-    """Інтерактивний режим запитів"""
-    logger.info("Запуск інтерактивного режиму")
+def index_documents(preprocessor, embedder, storage, data_dir="data/raw"):
+    """Індексує всі документи з директорії"""
+    console.print(
+        f"\n[bold blue]📚 Індексація документів з {data_dir}[/bold blue]\n")
 
-    # Завантаження індексу
-    embedder = EmbedderFactory.create(method="sbert")
-    storage = FAISSStorage()
-    storage.load(index_path)
+    data_path = Path(data_dir)
+    if not data_path.exists():
+        console.print("[red]Директорія не знайдена![/red]")
+        return
+
+    files = list(data_path.glob("*.pdf")) + list(data_path.glob("*.txt"))
+
+    if not files:
+        console.print("[yellow]Документи не знайдено![/yellow]")
+        return
+
+    all_chunks = []
+
+    for file_path in files:
+        console.print(f"📄 Обробка: {file_path.name}")
+
+        # Обробка документа
+        result = preprocessor.process_document(
+            str(file_path),
+            enable_chunking=True,
+            chunk_size=int(os.getenv("CHUNK_SIZE", 500)),
+            chunk_overlap=int(os.getenv("CHUNK_OVERLAP", 100)))
+
+        console.print(f"   ✅ Створено {len(result.chunks)} чанків")
+        all_chunks.extend(result.chunks)
+
+    # Векторизація
+    console.print(f"\n🔢 Векторизація {len(all_chunks)} чанків...")
+    embeddings = embedder.embed_batch(all_chunks)
+
+    # Збереження в storage
+    console.print("💾 Збереження в векторну БД...")
+    storage.add(embeddings, all_chunks)
+    storage.save("data/indexes/knowledge_base")
 
     stats = storage.get_stats()
-    logger.info(f"📊 Завантажено індекс: {stats}")
+    console.print(f"\n[bold green]✅ Індексація завершена![/bold green]")
+    console.print(f"   Векторів: {stats['total_vectors']}")
+    console.print(f"   Документів: {stats['unique_documents']}\n")
 
-    print("\n" + "=" * 60)
-    print("RAG СИСТЕМА - ІНТЕРАКТИВНИЙ РЕЖИМ")
-    print("=" * 60)
-    print("Введіть запитання (або 'exit' для виходу)\n")
 
-    from src.models import TextChunk
+def query_mode(agent):
+    """Режим одиночного запиту"""
+    question = input("\n💬 Ваше запитання: ")
+
+    console.print("\n[yellow]🤔 Обробка...[/yellow]\n")
+    response = agent.answer(question)
+
+    # Виводимо відповідь
+    console.print("[bold green]💡 Відповідь:[/bold green]")
+    console.print(Markdown(response.answer))
+
+    # Виводимо джерела
+    console.print(
+        f"\n[bold blue]📚 Джерела ({len(response.sources)}):[/bold blue]")
+    for i, src in enumerate(response.sources, 1):
+        console.print(f"[cyan]{i}.[/cyan] Score: {src.score:.3f}")
+        console.print(f"   {src.chunk.text[:100]}...\n")
+
+    # Метадані
+    console.print(
+        f"[dim]⏱️  Час: {response.metadata.get('duration_seconds')}s[/dim]")
+
+
+def interactive_mode(agent):
+    """Інтерактивний режим діалогу"""
+    console.print("\n[bold green]🤖 Інтерактивний режим[/bold green]")
+    console.print("[dim]Введіть 'exit' або 'quit' для виходу[/dim]\n")
 
     while True:
-        query = input("Ваш запит: ").strip()
-
-        if query.lower() in ['exit', 'quit', 'вихід']:
-            break
-
-        if not query:
-            continue
-
         try:
-            # Векторизація запиту
-            query_chunk = TextChunk(text=query,
-                                    chunk_id="query",
-                                    document_id="query")
-            query_embedding = embedder.embed(query_chunk)
+            question = input("💬 Вы: ")
 
-            # Пошук
-            results = storage.search(query_embedding.vector, top_k=3)
+            if question.lower() in ['exit', 'quit', 'вихід']:
+                console.print("\n[yellow]👋 До побачення![/yellow]")
+                break
 
-            print(f"\n🔍 Знайдено {len(results)} релевантних фрагментів:\n")
-            for i, result in enumerate(results):
-                print(f"{i+1}. Score: {result.score:.4f}")
-                print(f"   {result.chunk.text[:200]}...")
-                print(f"   (Документ: {result.document_id})\n")
+            if not question.strip():
+                continue
 
+            console.print("\n[yellow]🤔 Обробка...[/yellow]\n")
+            response = agent.answer(question)
+
+            console.print("[bold green]🤖 Асистент:[/bold green]")
+            console.print(Markdown(response.answer))
+            console.print()
+
+        except KeyboardInterrupt:
+            console.print("\n[yellow]👋 До побачення![/yellow]")
+            break
         except Exception as e:
-            logger.error(f"Помилка: {e}")
-
-    print("До побачення!")
+            console.print(f"[red]Помилка: {e}[/red]\n")
 
 
 def main():
     parser = argparse.ArgumentParser(description="RAG System")
     parser.add_argument("--mode",
-                        choices=["index", "interactive"],
+                        choices=["index", "query", "interactive"],
                         default="interactive",
                         help="Режим роботи")
-    parser.add_argument("--input",
-                        default="./data/documents",
-                        help="Шлях до PDF документів")
-    parser.add_argument("--index-path",
-                        default="./data/indexes/knowledge_base",
-                        help="Шлях до індексу")
+    parser.add_argument("--data-dir",
+                        default="data/raw",
+                        help="Директорія з документами")
+    parser.add_argument("--question", help="Запитання (для mode=query)")
 
     args = parser.parse_args()
 
+    console.print("[bold blue]🚀 RAG System[/bold blue]\n")
+
+    # Ініціалізація компонентів
+    console.print("⚙️  Ініціалізація компонентів...")
+
+    preprocessor = PreprocessorFactory.create(worker="minimal",
+                                              default_parser="auto")
+
+    embedder = EmbedderFactory.create(
+        method="sbert",
+        model_name=os.getenv("EMBEDDER_MODEL",
+                             "sentence-transformers/all-MiniLM-L6-v2"),
+        batch_size=int(os.getenv("EMBEDDER_BATCH_SIZE", 32)))
+
+    storage = FAISSStorage(dimension=384)
+
     if args.mode == "index":
-        index_documents(args.input, args.index_path)
-    elif args.mode == "interactive":
-        interactive_mode(args.index_path)
+        # Режим індексації
+        index_documents(preprocessor, embedder, storage, args.data_dir)
+
+    else:
+        # Завантажуємо існуючий індекс
+        index_path = "data/indexes/knowledge_base"
+        if not Path(f"{index_path}.faiss").exists():
+            console.print(
+                "[red]❌ Індекс не знайдено! Спочатку запустіть --mode index[/red]"
+            )
+            return
+
+        console.print("💾 Завантаження індексу...")
+        storage.load(index_path)
+
+        # Створюємо LLM client
+        api_key = os.getenv("PERPLEXITY_API_KEY")
+        if not api_key:
+            console.print("[red]❌ PERPLEXITY_API_KEY не встановлено![/red]")
+            return
+
+        llm_client = LLMClientFactory.create(
+            provider=os.getenv("LLM_PROVIDER", "perplexity"),
+            api_key=api_key,
+            model=os.getenv("LLM_MODEL", "sonar"))
+
+        # Створюємо AI Agent
+        agent = AIAgent(storage=storage,
+                        embedder=embedder,
+                        llm_client=llm_client,
+                        top_k=int(os.getenv("TOP_K", 5)),
+                        min_similarity=float(os.getenv("MIN_SIMILARITY", 0.3)),
+                        temperature=float(os.getenv("LLM_TEMPERATURE", 0.1)),
+                        max_tokens=int(os.getenv("LLM_MAX_TOKENS", 500)),
+                        language="uk")
+
+        console.print("[green]✅ Система готова![/green]\n")
+
+        if args.mode == "query":
+            # Режим одиночного запиту
+            if not args.question:
+                args.question = input("💬 Ваше запитання: ")
+            query_mode(agent)
+        else:
+            # Інтерактивний режим
+            interactive_mode(agent)
 
 
 if __name__ == "__main__":
