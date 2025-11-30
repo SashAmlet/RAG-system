@@ -147,7 +147,7 @@ Edit `.env` to customize:
 LLM_PROVIDER=ollama
 LLM_MODEL=qwen2.5:7b
 LLM_TEMPERATURE=0.1
-LLM_MAX_TOKENS=500
+LLM_MAX_TOKENS=800
 
 # Embeddings
 EMBEDDER_MODEL=sentence-transformers/all-MiniLM-L6-v2
@@ -157,8 +157,8 @@ TOP_K=5
 MIN_SIMILARITY=0.3
 
 # Chunking
-CHUNK_SIZE=500
-CHUNK_OVERLAP=100
+CHUNK_SIZE=800
+CHUNK_OVERLAP=150
 ```
 
 ## API Documentation

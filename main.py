@@ -1,14 +1,9 @@
-# main.py
-
 import os
 import argparse
 from dotenv import load_dotenv
 from rich.console import Console
 from rich.markdown import Markdown
 from pathlib import Path
-from config import logging_config
-
-logging_config.configure_logging()
 
 from src.preprocessing.preprocessor_factory import PreprocessorFactory
 from src.embeddings.embedder import EmbedderFactory
@@ -22,11 +17,9 @@ load_dotenv()
 console = Console()
 
 
-
 def index_documents(preprocessor, embedder, storage, data_dir="data/raw"):
     """Індексує всі документи з директорії"""
-    console.print(
-        f"\n[bold blue]📚 Індексація документів з {data_dir}[/bold blue]\n")
+    console.print(f"\n[bold blue]📚 Індексація документів з {data_dir}[/bold blue]\n")
 
     data_path = Path(data_dir)
     if not data_path.exists():
@@ -48,8 +41,9 @@ def index_documents(preprocessor, embedder, storage, data_dir="data/raw"):
         result = preprocessor.process_document(
             str(file_path),
             enable_chunking=True,
-            chunk_size=int(os.getenv("CHUNK_SIZE", 500)),
-            chunk_overlap=int(os.getenv("CHUNK_OVERLAP", 100)))
+            chunk_size=int(os.getenv("CHUNK_SIZE", 800)),
+            chunk_overlap=int(os.getenv("CHUNK_OVERLAP", 150)),
+        )
 
         console.print(f"   ✅ Створено {len(result.chunks)} чанків")
         all_chunks.extend(result.chunks)
@@ -81,15 +75,13 @@ def query_mode(agent):
     console.print(Markdown(response.answer))
 
     # Виводимо джерела
-    console.print(
-        f"\n[bold blue]📚 Джерела ({len(response.sources)}):[/bold blue]")
+    console.print(f"\n[bold blue]📚 Джерела ({len(response.sources)}):[/bold blue]")
     for i, src in enumerate(response.sources, 1):
         console.print(f"[cyan]{i}.[/cyan] Score: {src.score:.3f}")
         console.print(f"   {src.chunk.text[:100]}...\n")
 
     # Метадані
-    console.print(
-        f"[dim]⏱️  Час: {response.metadata.get('duration_seconds')}s[/dim]")
+    console.print(f"[dim]⏱️  Час: {response.metadata.get('duration_seconds')}s[/dim]")
 
 
 def interactive_mode(agent):
@@ -101,7 +93,7 @@ def interactive_mode(agent):
         try:
             question = input("💬 Вы: ")
 
-            if question.lower() in ['exit', 'quit', 'вихід']:
+            if question.lower() in ["exit", "quit", "вихід"]:
                 console.print("\n[yellow]👋 До побачення![/yellow]")
                 break
 
@@ -124,13 +116,15 @@ def interactive_mode(agent):
 
 def main():
     parser = argparse.ArgumentParser(description="RAG System")
-    parser.add_argument("--mode",
-                        choices=["index", "query", "interactive"],
-                        default="interactive",
-                        help="Режим роботи")
-    parser.add_argument("--data-dir",
-                        default="data/raw",
-                        help="Директорія з документами")
+    parser.add_argument(
+        "--mode",
+        choices=["index", "query", "interactive"],
+        default="interactive",
+        help="Режим роботи",
+    )
+    parser.add_argument(
+        "--data-dir", default="data/raw", help="Директорія з документами"
+    )
     parser.add_argument("--question", help="Запитання (для mode=query)")
 
     args = parser.parse_args()
@@ -140,14 +134,15 @@ def main():
     # Ініціалізація компонентів
     console.print("⚙️  Ініціалізація компонентів...")
 
-    preprocessor = PreprocessorFactory.create(worker="minimal",
-                                              default_parser="auto")
+    preprocessor = PreprocessorFactory.create(worker="minimal", default_parser="auto")
 
     embedder = EmbedderFactory.create(
         method="sbert",
-        model_name=os.getenv("EMBEDDER_MODEL",
-                             "sentence-transformers/all-MiniLM-L6-v2"),
-        batch_size=int(os.getenv("EMBEDDER_BATCH_SIZE", 32)))
+        model_name=os.getenv(
+            "EMBEDDER_MODEL", "sentence-transformers/all-MiniLM-L6-v2"
+        ),
+        batch_size=int(os.getenv("EMBEDDER_BATCH_SIZE", 32)),
+    )
 
     storage = FAISSStorage(dimension=384)
 
@@ -176,17 +171,20 @@ def main():
         llm_client = LLMClientFactory.create(
             provider=os.getenv("LLM_PROVIDER", "perplexity"),
             api_key=api_key,
-            model=os.getenv("LLM_MODEL", "sonar"))
+            model=os.getenv("LLM_MODEL", "sonar"),
+        )
 
         # Створюємо AI Agent
-        agent = AIAgent(storage=storage,
-                        embedder=embedder,
-                        llm_client=llm_client,
-                        top_k=int(os.getenv("TOP_K", 5)),
-                        min_similarity=float(os.getenv("MIN_SIMILARITY", 0.3)),
-                        temperature=float(os.getenv("LLM_TEMPERATURE", 0.1)),
-                        max_tokens=int(os.getenv("LLM_MAX_TOKENS", 500)),
-                        language="uk")
+        agent = AIAgent(
+            storage=storage,
+            embedder=embedder,
+            llm_client=llm_client,
+            top_k=int(os.getenv("TOP_K", 5)),
+            min_similarity=float(os.getenv("MIN_SIMILARITY", 0.3)),
+            temperature=float(os.getenv("LLM_TEMPERATURE", 0.1)),
+            max_tokens=int(os.getenv("LLM_MAX_TOKENS", 800)),
+            language="uk",
+        )
 
         console.print("[green]✅ Система готова![/green]\n")
 

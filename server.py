@@ -17,7 +17,7 @@ load_dotenv()
 embedder = EmbedderFactory.create(
     method="sbert",
     model_name=os.getenv("EMBEDDER_MODEL", "sentence-transformers/all-MiniLM-L6-v2"),
-    batch_size=int(os.getenv("EMBEDDER_BATCH_SIZE", 32))
+    batch_size=int(os.getenv("EMBEDDER_BATCH_SIZE", 32)),
 )
 
 storage = FAISSStorage(dimension=384)
@@ -31,7 +31,7 @@ else:
 llm_client = LLMClientFactory.create(
     provider="ollama",
     model=os.getenv("LLM_MODEL", "qwen2.5:7b"),
-    temperature=float(os.getenv("LLM_TEMPERATURE", 0.1))
+    temperature=float(os.getenv("LLM_TEMPERATURE", 0.1)),
 )
 
 agent = AIAgent(
@@ -41,16 +41,17 @@ agent = AIAgent(
     top_k=int(os.getenv("TOP_K", 5)),
     min_similarity=float(os.getenv("MIN_SIMILARITY", 0.3)),
     temperature=float(os.getenv("LLM_TEMPERATURE", 0.1)),
-    max_tokens=int(os.getenv("LLM_MAX_TOKENS", 500)),
-    language="uk"
+    max_tokens=int(os.getenv("LLM_MAX_TOKENS", 800)),
+    language="uk",
 )
 
 # Створення FastAPI додатку
 app = FastAPI(
     title="RAG System API",
     version="1.0",
-    description="API for RAG System using LangChain & Ollama"
+    description="API for RAG System using LangChain & Ollama",
 )
+
 
 # Адаптер для LangServe
 def run_agent(input_data: dict) -> str:
@@ -61,9 +62,9 @@ def run_agent(input_data: dict) -> str:
     print(f"DEBUG: Input data type: {type(input_data)}")
     print("DEBUG: Input data:")
     pprint.pprint(input_data)
-    
+
     raw_query = None
-    
+
     # 1. Визначаємо де лежить запит/повідомлення
     if isinstance(input_data, dict):
         if "input" in input_data:
@@ -77,14 +78,14 @@ def run_agent(input_data: dict) -> str:
             raw_query = input_data["undefined"]
         # Fallback: якщо це dict, але немає відомих ключів
         elif not raw_query:
-             if "content" in input_data:
-                 raw_query = input_data["content"]
+            if "content" in input_data:
+                raw_query = input_data["content"]
     elif isinstance(input_data, list):
         raw_query = input_data
 
     # 2. Витягуємо текст запиту
     final_query = ""
-    
+
     if isinstance(raw_query, str):
         final_query = raw_query
     elif isinstance(raw_query, list):
@@ -93,27 +94,27 @@ def run_agent(input_data: dict) -> str:
         for i, msg in enumerate(reversed(raw_query)):
             print(f"DEBUG: Checking item {i}: {type(msg)}")
             # LangChain Message object
-            if hasattr(msg, 'content'):
-                msg_type = getattr(msg, 'type', '')
+            if hasattr(msg, "content"):
+                msg_type = getattr(msg, "type", "")
                 print(f"DEBUG: Item is object with content. Type: {msg_type}")
-                if msg_type == 'human' or msg_type == 'user':
+                if msg_type == "human" or msg_type == "user":
                     final_query = msg.content
                     break
             # Dictionary representation
             elif isinstance(msg, dict):
-                msg_type = msg.get('type') or msg.get('role')
+                msg_type = msg.get("type") or msg.get("role")
                 print(f"DEBUG: Item is dict. Type: {msg_type}")
-                if msg_type in ['human', 'user']:
-                    final_query = msg.get('content', '')
+                if msg_type in ["human", "user"]:
+                    final_query = msg.get("content", "")
                     break
             # String
             elif isinstance(msg, str):
                 print("DEBUG: Item is string")
                 final_query = msg
                 break
-    
+
     print(f"DEBUG: Extracted query: '{final_query}'")
-    
+
     if not final_query:
         return "Error: Could not extract query from input. Please check server logs."
 
@@ -121,16 +122,13 @@ def run_agent(input_data: dict) -> str:
     response = agent.answer(final_query)
     return response.answer
 
+
 # Створюємо Runnable з функції
 chain = RunnableLambda(run_agent)
 
-add_routes(
-    app,
-    chain,
-    path="/rag",
-    playground_type="chat"
-)
+add_routes(app, chain, path="/rag", playground_type="chat")
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="localhost", port=8000)

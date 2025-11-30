@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from typing import Optional, Dict, Any
 import logging
 import time
 from langchain_ollama import ChatOllama
@@ -12,11 +11,13 @@ class LLMClient(ABC):
     """Базовий інтерфейс для LLM клієнтів"""
 
     @abstractmethod
-    def generate(self,
-                 system_prompt: str,
-                 user_prompt: str,
-                 temperature: float = 0.1,
-                 max_tokens: int = 500) -> str:
+    def generate(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        temperature: float = 0.1,
+        max_tokens: int = 500,
+    ) -> str:
         """Генерує відповідь від LLM"""
         pass
 
@@ -44,59 +45,52 @@ class PerplexityClient(LLMClient):
 
         logger.info(f"PerplexityClient ініціалізовано. Модель: {model}")
 
-    def generate(self,
-                 system_prompt: str,
-                 user_prompt: str,
-                 temperature: float = 0.1,
-                 max_tokens: int = 500) -> str:
+    def generate(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        temperature: float = 0.1,
+        max_tokens: int = 500,
+    ) -> str:
         """
         Генерує відповідь через Perplexity API.
-        
+
         Args:
             system_prompt: Системний промпт
             user_prompt: Промпт користувача
             temperature: Креативність (0-2, рекомендовано 0.1 для точності)
             max_tokens: Максимальна довжина відповіді
-            
+
         Returns:
             Текст відповіді
-            
+
         Raises:
             Exception: При помилках API
         """
         headers = {
             "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         }
 
         payload = {
-            "model":
-            self.model,
-            "messages": [{
-                "role": "system",
-                "content": system_prompt
-            }, {
-                "role": "user",
-                "content": user_prompt
-            }],
-            "temperature":
-            temperature,
-            "max_tokens":
-            max_tokens,
-            "top_p":
-            0.9,
-            "stream":
-            False
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "top_p": 0.9,
+            "stream": False,
         }
 
         logger.info(f"Відправка запиту до Perplexity API (model={self.model})")
         start_time = time.time()
 
         try:
-            response = requests.post(self.api_url,
-                                     headers=headers,
-                                     json=payload,
-                                     timeout=self.timeout)
+            response = requests.post(
+                self.api_url, headers=headers, json=payload, timeout=self.timeout
+            )
             response.raise_for_status()
 
             result = response.json()
@@ -106,8 +100,10 @@ class PerplexityClient(LLMClient):
             usage = result.get("usage", {})
             duration = time.time() - start_time
 
-            logger.info(f"Відповідь отримано за {duration:.2f}s. "
-                        f"Токени: {usage.get('total_tokens', 'N/A')}")
+            logger.info(
+                f"Відповідь отримано за {duration:.2f}s. "
+                f"Токени: {usage.get('total_tokens', 'N/A')}"
+            )
 
             return answer.strip()
 
@@ -116,14 +112,12 @@ class PerplexityClient(LLMClient):
             raise Exception("LLM API таймаут. Спробуйте ще раз.")
 
         except requests.exceptions.HTTPError as e:
-            logger.error(
-                f"HTTP помилка: {e.response.status_code} - {e.response.text}")
+            logger.error(f"HTTP помилка: {e.response.status_code} - {e.response.text}")
             raise Exception(f"Помилка LLM API: {e.response.status_code}")
 
         except Exception as e:
             logger.error(f"Несподівана помилка: {str(e)}")
             raise Exception(f"Помилка при зверненні до LLM: {str(e)}")
-
 
 
 class OllamaClient(LLMClient):
@@ -138,11 +132,13 @@ class OllamaClient(LLMClient):
         self.llm = ChatOllama(model=model, temperature=temperature)
         logger.info(f"OllamaClient ініціалізовано. Модель: {model}")
 
-    def generate(self,
-                 system_prompt: str,
-                 user_prompt: str,
-                 temperature: float = 0.1,
-                 max_tokens: int = 500) -> str:
+    def generate(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        temperature: float = 0.1,
+        max_tokens: int = 500,
+    ) -> str:
         """
         Генерує відповідь через Ollama.
         """
@@ -152,9 +148,9 @@ class OllamaClient(LLMClient):
         try:
             messages = [
                 SystemMessage(content=system_prompt),
-                HumanMessage(content=user_prompt)
+                HumanMessage(content=user_prompt),
             ]
-            
+
             # Оновлюємо температуру якщо змінилась
             if temperature != self.temperature:
                 self.llm.temperature = temperature
@@ -179,22 +175,26 @@ class LLMClientFactory:
     def create(provider: str, **kwargs) -> LLMClient:
         """
         Створює LLM клієнт.
-        
+
         Args:
             provider: 'perplexity', 'openai', 'ollama'
             **kwargs: Параметри для клієнта
-            
+
         Returns:
             Екземпляр LLMClient
         """
         provider = provider.lower()
 
         if provider == "perplexity":
-            return PerplexityClient(api_key=kwargs["api_key"],
-                                    model=kwargs.get("model", "sonar"),
-                                    timeout=kwargs.get("timeout", 30))
+            return PerplexityClient(
+                api_key=kwargs["api_key"],
+                model=kwargs.get("model", "sonar"),
+                timeout=kwargs.get("timeout", 30),
+            )
         elif provider == "ollama":
-            return OllamaClient(model=kwargs.get("model", "qwen2.5:7b"),
-                                temperature=kwargs.get("temperature", 0.1))
+            return OllamaClient(
+                model=kwargs.get("model", "qwen2.5:7b"),
+                temperature=kwargs.get("temperature", 0.1),
+            )
         else:
             raise ValueError(f"Unknown provider: {provider}")

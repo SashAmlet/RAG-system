@@ -1,7 +1,6 @@
 import logging
 import time
-from typing import Optional, List, Dict, Any, TypedDict
-from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
+from typing import List, Dict, TypedDict
 
 from langgraph.graph import StateGraph, END
 
@@ -29,16 +28,18 @@ class AIAgent:
     Використовує LangGraph для оркестрації.
     """
 
-    def __init__(self,
-                 storage: IStorage,
-                 embedder: IEmbedder,
-                 llm_client: LLMClient,
-                 top_k: int = 5,
-                 min_similarity: float = 0.3,
-                 temperature: float = 0.1,
-                 max_tokens: int = 500,
-                 language: str = "uk"):
-        
+    def __init__(
+        self,
+        storage: IStorage,
+        embedder: IEmbedder,
+        llm_client: LLMClient,
+        top_k: int = 5,
+        min_similarity: float = 0.3,
+        temperature: float = 0.1,
+        max_tokens: int = 500,
+        language: str = "uk",
+    ):
+
         self.retriever = Retriever(storage, embedder, min_similarity)
         self.prompt_builder = PromptBuilder(language)
         self.llm_client = llm_client
@@ -78,12 +79,14 @@ class AIAgent:
         """Вузол створення промпту"""
         query = state["query"]
         documents = state["documents"]
-        
+
         if not documents:
             sys_prompt, user_prompt = self.prompt_builder.build_no_context_prompt(query)
         else:
-            sys_prompt, user_prompt = self.prompt_builder.build_qa_prompt(query, documents)
-            
+            sys_prompt, user_prompt = self.prompt_builder.build_qa_prompt(
+                query, documents
+            )
+
         return {"system_prompt": sys_prompt, "user_prompt": user_prompt}
 
     def _generate_node(self, state: AgentState) -> Dict:
@@ -92,7 +95,7 @@ class AIAgent:
             system_prompt=state["system_prompt"],
             user_prompt=state["user_prompt"],
             temperature=self.temperature,
-            max_tokens=self.max_tokens
+            max_tokens=self.max_tokens,
         )
         return {"answer": answer}
 
@@ -105,11 +108,17 @@ class AIAgent:
 
         try:
             # Запуск графа
-            initial_state = {"query": query, "documents": [], "answer": "", "system_prompt": "", "user_prompt": ""}
+            initial_state = {
+                "query": query,
+                "documents": [],
+                "answer": "",
+                "system_prompt": "",
+                "user_prompt": "",
+            }
             final_state = self.workflow.invoke(initial_state)
 
             duration = time.time() - start_time
-            
+
             # Формування відповіді
             response = AgentResponse(
                 answer=final_state["answer"],
@@ -118,8 +127,16 @@ class AIAgent:
                 metadata={
                     "duration_seconds": round(duration, 2),
                     "num_sources": len(final_state["documents"]),
-                    "avg_similarity": round(sum(r.score for r in final_state["documents"]) / len(final_state["documents"]), 3) if final_state["documents"] else 0
-                }
+                    "avg_similarity": (
+                        round(
+                            sum(r.score for r in final_state["documents"])
+                            / len(final_state["documents"]),
+                            3,
+                        )
+                        if final_state["documents"]
+                        else 0
+                    ),
+                },
             )
 
             logger.info(f"Відповідь згенеровано за {duration:.2f}s")
@@ -131,5 +148,5 @@ class AIAgent:
                 answer=f"Вибачте, виникла помилка: {str(e)}",
                 sources=[],
                 query=query,
-                metadata={"error": str(e)}
+                metadata={"error": str(e)},
             )

@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from typing import List, Dict, Any
+from typing import List
 import numpy as np
 from collections import Counter
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -31,16 +30,13 @@ class BOWEmbedder(IEmbedder):
 
     def embed(self, result: ProcessorResult) -> EmbedderResult:
         # Використовуємо токени з моделі або розбиваємо текст самі
-        tokens = result.tokens if result.tokens else result.processed_text.split(
-        )
+        tokens = result.tokens if result.tokens else result.processed_text.split()
 
         counter = Counter(tokens)
         vector = [counter.get(word, 0) for word in self.vocab]
-        return EmbedderResult(vector=vector,
-                              metadata={
-                                  "method": "BOW",
-                                  "dim": len(vector)
-                              })
+        return EmbedderResult(
+            vector=vector, metadata={"method": "BOW", "dim": len(vector)}
+        )
 
 
 class TFIDFEmbedder(IEmbedder):
@@ -58,11 +54,9 @@ class TFIDFEmbedder(IEmbedder):
     def embed(self, result: ProcessorResult) -> EmbedderResult:
         text = result.processed_text
         vector = self.vectorizer.transform([text]).toarray()[0].tolist()
-        return EmbedderResult(vector=vector,
-                              metadata={
-                                  "method": "TF-IDF",
-                                  "dim": len(vector)
-                              })
+        return EmbedderResult(
+            vector=vector, metadata={"method": "TF-IDF", "dim": len(vector)}
+        )
 
 
 class Word2VecEmbedder(IEmbedder):
@@ -71,40 +65,33 @@ class Word2VecEmbedder(IEmbedder):
         self.model = model
 
     def embed(self, result: ProcessorResult) -> EmbedderResult:
-        tokens = result.tokens if result.tokens else result.processed_text.split(
-        )
+        tokens = result.tokens if result.tokens else result.processed_text.split()
 
-        vectors = [
-            self.model.wv[word] for word in tokens if word in self.model.wv
-        ]
+        vectors = [self.model.wv[word] for word in tokens if word in self.model.wv]
         if not vectors:
             avg_vector = [0.0] * self.model.vector_size
         else:
             avg_vector = np.mean(vectors, axis=0).tolist()
 
-        return EmbedderResult(vector=avg_vector,
-                              metadata={
-                                  "method": "Word2Vec",
-                                  "dim": len(avg_vector)
-                              })
+        return EmbedderResult(
+            vector=avg_vector, metadata={"method": "Word2Vec", "dim": len(avg_vector)}
+        )
 
 
 class SentenceBERTEmbedder(IEmbedder):
 
-    def __init__(self,
-                 model_name: str = "sentence-transformers/all-MiniLM-L6-v2"):
+    def __init__(self, model_name: str = "sentence-transformers/all-MiniLM-L6-v2"):
         from sentence_transformers import SentenceTransformer
+
         self.model = SentenceTransformer(model_name)
 
     def embed(self, result: ProcessorResult) -> EmbedderResult:
         # SBERT працює з чистим текстом
         text = result.processed_text
         vector = self.model.encode(text).tolist()
-        return EmbedderResult(vector=vector,
-                              metadata={
-                                  "method": "Sentence-BERT",
-                                  "dim": len(vector)
-                              })
+        return EmbedderResult(
+            vector=vector, metadata={"method": "Sentence-BERT", "dim": len(vector)}
+        )
 
 
 class OpenAIEmbedder(IEmbedder):
@@ -121,11 +108,9 @@ class OpenAIEmbedder(IEmbedder):
         response = self.client.embeddings.create(model=self.model, input=text)
         # OpenAI v1.x повертає об'єкт, а не словник
         vector = response.data[0].embedding
-        return EmbedderResult(vector=vector,
-                              metadata={
-                                  "method": "OpenAI",
-                                  "dim": len(vector)
-                              })
+        return EmbedderResult(
+            vector=vector, metadata={"method": "OpenAI", "dim": len(vector)}
+        )
 
 
 # ----- Factory -----
@@ -144,11 +129,11 @@ class EmbedderFactory:
             return Word2VecEmbedder(kwargs["model"])
         elif method == "sbert":
             return SentenceBERTEmbedder(
-                kwargs.get("model_name",
-                           "sentence-transformers/all-MiniLM-L6-v2"))
+                kwargs.get("model_name", "sentence-transformers/all-MiniLM-L6-v2")
+            )
         elif method == "openai":
             return OpenAIEmbedder(
-                kwargs["client"], kwargs.get("model",
-                                             "text-embedding-ada-002"))
+                kwargs["client"], kwargs.get("model", "text-embedding-ada-002")
+            )
         else:
             raise ValueError(f"Unknown embedder method: {method}")
