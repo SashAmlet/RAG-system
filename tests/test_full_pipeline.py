@@ -28,9 +28,7 @@ def test_full_pipeline():
 
     # 3. Векторизуємо
     embeddings = embedder.embed_batch(result.chunks)
-    print(
-        f"🔢 Створено {len(embeddings)} векторів (dim={len(embeddings[0].vector)})\n"
-    )
+    print(f"🔢 Створено {len(embeddings)} векторів (dim={len(embeddings[0].vector)})\n")
 
     # 4. Додаємо в storage
     storage.add(embeddings, result.chunks)
@@ -49,9 +47,7 @@ def test_full_pipeline():
     print(f"🔍 Запит: '{query_text}'")
 
     # Векторизуємо запит
-    query_chunk = TextChunk(text=query_text,
-                            chunk_id="query",
-                            document_id="query")
+    query_chunk = TextChunk(text=query_text, chunk_id="query", document_id="query")
     query_embedding = embedder.embed(query_chunk)
 
     # Шукаємо
@@ -73,6 +69,7 @@ def test_full_pipeline():
 
     # Очищаємо
     import os
+
     os.remove("test_knowledge_base.faiss")
     os.remove("test_knowledge_base.pkl")
 

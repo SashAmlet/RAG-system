@@ -153,7 +153,7 @@ LLM_MAX_TOKENS=800
 EMBEDDER_MODEL=sentence-transformers/all-MiniLM-L6-v2
 
 # Retrieval
-TOP_K=5
+TOP_K=4
 MIN_SIMILARITY=0.3
 
 # Chunking

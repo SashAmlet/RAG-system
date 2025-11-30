@@ -23,7 +23,7 @@ class RAGAgent:
         faiss_index_path: str,
         model: str = "qwen2.5:7b",
         temperature: float = 0.1,
-        top_k: int = 5,
+        top_k: int = 4,
     ):
         """
         Args:

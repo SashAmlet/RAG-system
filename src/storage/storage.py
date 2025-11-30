@@ -15,15 +15,12 @@ class IStorage(ABC):
     """Базовий інтерфейс для векторного сховища"""
 
     @abstractmethod
-    def add(self, embeddings: List[EmbedderResult],
-            chunks: List[TextChunk]) -> None:
+    def add(self, embeddings: List[EmbedderResult], chunks: List[TextChunk]) -> None:
         """Додає вектори в індекс"""
         pass
 
     @abstractmethod
-    def search(self,
-               query_vector: List[float],
-               top_k: int = 5) -> List[SearchResult]:
+    def search(self, query_vector: List[float], top_k: int = 4) -> List[SearchResult]:
         """Знаходить top_k найбільш схожих чанків"""
         pass
 
@@ -83,11 +80,10 @@ class FAISSStorage(IStorage):
         norms[norms == 0] = 1  # Уникаємо ділення на 0
         return vectors / norms
 
-    def add(self, embeddings: List[EmbedderResult],
-            chunks: List[TextChunk]) -> None:
+    def add(self, embeddings: List[EmbedderResult], chunks: List[TextChunk]) -> None:
         """
         Додає вектори в індекс (інкрементально).
-        
+
         Args:
             embeddings: Список векторних представлень чанків
         """
@@ -103,8 +99,7 @@ class FAISSStorage(IStorage):
         logger.info(f"Додавання {len(embeddings)} векторів в індекс")
 
         # Конвертуємо в numpy array
-        vectors = np.array([emb.vector for emb in embeddings],
-                           dtype=np.float32)
+        vectors = np.array([emb.vector for emb in embeddings], dtype=np.float32)
 
         # Нормалізуємо
         vectors = self._normalize(vectors)
@@ -126,12 +121,9 @@ class FAISSStorage(IStorage):
 
         self.next_id += len(embeddings)
 
-        logger.info(
-            f"Додано успішно. Всього векторів в індексі: {self.index.ntotal}")
+        logger.info(f"Додано успішно. Всього векторів в індексі: {self.index.ntotal}")
 
-    def search(self,
-               query_vector: List[float],
-               top_k: int = 5) -> List[SearchResult]:
+    def search(self, query_vector: List[float], top_k: int = 4) -> List[SearchResult]:
         """
         Знаходить top_k найбільш схожих чанків.
         """
@@ -166,10 +158,13 @@ class FAISSStorage(IStorage):
             score = float((dist + 1) / 2)
 
             results.append(
-                SearchResult(chunk=chunk,
-                             score=score,
-                             document_id=chunk.document_id,
-                             chunk_id=chunk.chunk_id))
+                SearchResult(
+                    chunk=chunk,
+                    score=score,
+                    document_id=chunk.document_id,
+                    chunk_id=chunk.chunk_id,
+                )
+            )
 
         logger.info(f"Знайдено {len(results)} результатів")
         return results
@@ -177,7 +172,7 @@ class FAISSStorage(IStorage):
     def save(self, file_path: str | Path) -> None:
         """
         Зберігає індекс + metadata на диск.
-        
+
         Args:
             filepath: Шлях без розширення (додасться .faiss та .pkl)
         """
@@ -191,13 +186,13 @@ class FAISSStorage(IStorage):
 
         # Зберігаємо metadata
         metadata = {
-            'metadata_store': self.metadata_store,
-            'chunk_id_to_faiss_id': self.chunk_id_to_faiss_id,
-            'next_id': self.next_id,
-            'dimension': self.dimension
+            "metadata_store": self.metadata_store,
+            "chunk_id_to_faiss_id": self.chunk_id_to_faiss_id,
+            "next_id": self.next_id,
+            "dimension": self.dimension,
         }
 
-        with open(metadata_path, 'wb') as f:
+        with open(metadata_path, "wb") as f:
             pickle.dump(metadata, f)
 
         logger.info(f"Індекс збережено: {faiss_path}, {metadata_path}")
@@ -205,7 +200,7 @@ class FAISSStorage(IStorage):
     def load(self, file_path: str | Path) -> None:
         """
         Завантажує індекс + metadata з диску.
-        
+
         Args:
             filepath: Шлях без розширення
         """
@@ -222,17 +217,19 @@ class FAISSStorage(IStorage):
         self.index = faiss.read_index(faiss_path)
 
         # Завантажуємо metadata
-        with open(metadata_path, 'rb') as f:
+        with open(metadata_path, "rb") as f:
             metadata = pickle.load(f)
 
-        self.metadata_store = metadata['metadata_store']
-        self.chunk_id_to_faiss_id = metadata['chunk_id_to_faiss_id']
-        self.next_id = metadata['next_id']
+        self.metadata_store = metadata["metadata_store"]
+        self.chunk_id_to_faiss_id = metadata["chunk_id_to_faiss_id"]
+        self.next_id = metadata["next_id"]
 
         # Перевірка розмірності
-        if metadata['dimension'] != self.dimension:
-            logger.warning(f"Розмірність індексу ({metadata['dimension']}) "
-                           f"не співпадає з очікуваною ({self.dimension})")
+        if metadata["dimension"] != self.dimension:
+            logger.warning(
+                f"Розмірність індексу ({metadata['dimension']}) "
+                f"не співпадає з очікуваною ({self.dimension})"
+            )
 
         logger.info(f"Індекс завантажено: {self.index.ntotal} векторів")
 
@@ -247,13 +244,14 @@ class FAISSStorage(IStorage):
     def get_stats(self) -> Dict[str, int]:
         """Повертає статистику індексу"""
         unique_docs = len(
-            set(chunk.document_id for chunk in self.metadata_store.values()))
+            set(chunk.document_id for chunk in self.metadata_store.values())
+        )
         return {
-            'total_vectors': self.index.ntotal,
-            'dimension': self.dimension,
-            'unique_documents': unique_docs,
-            'normalize_vectors': self.normalize_vectors,
-            'metadata_count': len(self.metadata_store)
+            "total_vectors": self.index.ntotal,
+            "dimension": self.dimension,
+            "unique_documents": unique_docs,
+            "normalize_vectors": self.normalize_vectors,
+            "metadata_count": len(self.metadata_store),
         }
 
 
@@ -264,19 +262,20 @@ class StorageFactory:
     def create(storage_type: str = "faiss", **kwargs) -> IStorage:
         """
         Створює storage.
-        
+
         Args:
             storage_type: Тип storage ('faiss')
             **kwargs: Параметри для storage
-            
+
         Returns:
             Екземпляр IStorage
         """
         storage_type = storage_type.lower()
 
         if storage_type == "faiss":
-            return FAISSStorage(dimension=kwargs.get("dimension", 384),
-                                normalize_vectors=kwargs.get(
-                                    "normalize_vectors", True))
+            return FAISSStorage(
+                dimension=kwargs.get("dimension", 384),
+                normalize_vectors=kwargs.get("normalize_vectors", True),
+            )
         else:
             raise ValueError(f"Unknown storage type: {storage_type}")
